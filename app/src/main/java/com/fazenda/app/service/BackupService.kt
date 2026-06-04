@@ -55,14 +55,22 @@ class BackupService(private val context: Context) {
                 val fileName = assetRelative.removePrefix("images/")
                 val entry = "photos/$fileName"
                 if (entry in addedInZip) continue
-                try {
-                    context.assets.open(assetRelative).use { input ->
-                        addedInZip.add(entry)
-                        zos.putNextEntry(ZipEntry(entry))
-                        input.copyTo(zos)
-                        zos.closeEntry()
+                val photoFile = File(photosDir, fileName)
+                if (photoFile.exists()) {
+                    addedInZip.add(entry)
+                    zos.putNextEntry(ZipEntry(entry))
+                    FileInputStream(photoFile).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                } else {
+                    try {
+                        context.assets.open(assetRelative).use { input ->
+                            addedInZip.add(entry)
+                            zos.putNextEntry(ZipEntry(entry))
+                            input.copyTo(zos)
+                            zos.closeEntry()
+                        }
+                    } catch (_: Exception) {
                     }
-                } catch (_: Exception) {
                 }
             }
         }
