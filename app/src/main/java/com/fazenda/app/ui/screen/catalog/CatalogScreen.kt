@@ -1,0 +1,290 @@
+package com.fazenda.app.ui.screen.catalog
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.ui.util.PhotoPathResolver
+import com.fazenda.app.ui.viewmodel.CatalogViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CatalogScreen(
+    onPlantClick: (Long) -> Unit,
+    onPlantEdit: (Long) -> Unit = {},
+    onAddPlant: () -> Unit = {},
+    onZonesClick: () -> Unit = {},
+    catalogViewModel: CatalogViewModel = viewModel()
+) {
+    val plantsByCategory by catalogViewModel.plantsByCategory.collectAsState()
+    val categories by catalogViewModel.categories.collectAsState()
+    val allPlants by catalogViewModel.allPlants.collectAsState()
+    val zones by catalogViewModel.zones.collectAsState()
+    val isLoading by catalogViewModel.isLoading.collectAsState()
+
+    val zoneMap = remember(zones) { zones.associateBy { it.id } }
+
+    var expanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+
+    val filteredPlants = if (selectedCategory == null) {
+        allPlants
+    } else {
+        plantsByCategory[selectedCategory] ?: emptyList()
+    }
+
+    val searchFilteredPlants = if (searchQuery.isBlank()) {
+        filteredPlants
+    } else {
+        filteredPlants.filter { plant ->
+            val zoneName = plant.zoneId?.let { zoneMap[it]?.name } ?: ""
+            plant.name.contains(searchQuery, ignoreCase = true) ||
+            plant.category.contains(searchQuery, ignoreCase = true) ||
+            zoneName.contains(searchQuery, ignoreCase = true) ||
+            plant.row?.toString()?.contains(searchQuery) == true ||
+            plant.position?.toString()?.contains(searchQuery) == true
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            if (showSearch) {
+                TopAppBar(
+                    title = {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Назва, категорія, ряд, номер...") },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Очистити")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            showSearch = false
+                            searchQuery = ""
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Каталог рослин") },
+                    actions = {
+                        IconButton(onClick = onZonesClick) {
+                            Icon(Icons.Default.Hub, contentDescription = "Зони")
+                        }
+                        IconButton(onClick = { showSearch = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Пошук")
+                        }
+                        Box {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Фільтр")
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Всі рослини (А-Я)") },
+                                    onClick = {
+                                        selectedCategory = null
+                                        expanded = false
+                                    }
+                                )
+                                HorizontalDivider()
+                                categories.forEach { category ->
+                                    DropdownMenuItem(
+                                        text = { Text(category) },
+                                        onClick = {
+                                            selectedCategory = category
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAddPlant) {
+                Icon(Icons.Default.Add, contentDescription = "Додати рослину")
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (searchFilteredPlants.isEmpty()) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Grass,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = Color.Gray.copy(alpha = 0.3f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Немає рослин у каталозі", style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(12.dp)
+                ) {
+                    if (selectedCategory == null) {
+                        items(searchFilteredPlants) { plant ->
+                            PlantCard(
+                                plant = plant,
+                                zoneName = plant.zoneId?.let { zoneMap[it]?.name },
+                                onClick = { onPlantClick(plant.id) },
+                                onEdit = { onPlantEdit(plant.id) }
+                            )
+                        }
+                    } else {
+                        item {
+                            Text(
+                                selectedCategory!!,
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                        items(searchFilteredPlants) { plant ->
+                            PlantCard(
+                                plant = plant,
+                                zoneName = plant.zoneId?.let { zoneMap[it]?.name },
+                                onClick = { onPlantClick(plant.id) },
+                                onEdit = { onPlantEdit(plant.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlantCard(plant: PlantEntity, zoneName: String?, onClick: () -> Unit, onEdit: () -> Unit = {}) {
+    val context = LocalContext.current
+    val photoModel = PhotoPathResolver.toAsyncImageModel(context, plant.photoPath)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        onClick = onClick
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(100.dp)
+                    .height(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (photoModel != null) {
+                    AsyncImage(
+                        model = photoModel,
+                        contentDescription = plant.name,
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Grass, contentDescription = null, tint = Color.Gray)
+                        }
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            plant.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                plant.category,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Edit, contentDescription = "Редагувати", modifier = Modifier.size(18.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                if (zoneName != null || plant.row != null || plant.position != null) {
+                    val parts = mutableListOf<String>()
+                    zoneName?.let { parts.add(it) }
+                    plant.row?.let { parts.add("Ряд ${it.toInt()}") }
+                    plant.position?.let { parts.add("№${it.toInt()}") }
+                    Text(
+                        parts.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2
+                    )
+                }
+            }
+        }
+    }
+}
