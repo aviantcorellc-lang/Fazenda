@@ -1,5 +1,6 @@
 package com.fazenda.app.ui.navigation
 
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dashboard
@@ -84,7 +85,7 @@ fun AppNavigation() {
         NavHost(
             navController = navController,
             startDestination = Screen.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding).imePadding()
         ) {
             composable(Screen.Dashboard.route) {
                 DashboardScreen(
