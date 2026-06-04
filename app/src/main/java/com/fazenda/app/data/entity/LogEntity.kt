@@ -38,4 +38,6 @@ object LogActionTypes {
     const val PLANT_DELETED = "Видалено рослину"
 
     val ALL = listOf(NOTE, FEEDING, SPRAYING, REPLACEMENT, OTHER, PLANT_ADDED, PLANT_DELETED)
+
+    val USER_FACING = listOf(NOTE, FEEDING, SPRAYING, REPLACEMENT, OTHER)
 }

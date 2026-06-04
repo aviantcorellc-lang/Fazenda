@@ -50,7 +50,7 @@ class CreateLogViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val actionTypes = LogActionTypes.ALL
+    val actionTypes = LogActionTypes.USER_FACING
 
     init {
         viewModelScope.launch {

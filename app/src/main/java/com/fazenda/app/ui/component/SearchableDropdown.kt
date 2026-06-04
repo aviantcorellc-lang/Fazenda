@@ -48,7 +48,7 @@ fun SearchableDropdown(
             readOnly = readOnly,
             modifier = modifier.menuAnchor()
         )
-        if (showDropdown && !readOnly) {
+        if (showDropdown) {
             ExposedDropdownMenu(
                 expanded = showDropdown,
                 onDismissRequest = { showDropdown = false }
