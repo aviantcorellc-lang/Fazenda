@@ -11,10 +11,6 @@ class PlantRepository(
     private val logRepository: LogRepository
 ) {
     val allPlants: Flow<List<PlantEntity>> = plantDao.getAllPlants()
-    val allCategories: Flow<List<String>> = plantDao.getAllCategories()
-
-    fun getPlantsByCategory(category: String): Flow<List<PlantEntity>> =
-        plantDao.getPlantsByCategory(category)
 
     suspend fun getPlantById(id: Long): PlantEntity? = plantDao.getPlantById(id)
 
@@ -25,7 +21,7 @@ class PlantRepository(
                 date = System.currentTimeMillis(),
                 plantId = id,
                 actionType = LogActionTypes.PLANT_ADDED,
-                comment = "Рослину '${plant.name}' (${plant.category}) додано"
+                comment = "Рослину '${plant.name}' додано"
             )
         )
         return id
@@ -39,7 +35,7 @@ class PlantRepository(
                 date = System.currentTimeMillis(),
                 plantId = plant.id,
                 actionType = LogActionTypes.PLANT_DELETED,
-                comment = "Рослину '${plant.name}' (${plant.category}) видалено"
+                comment = "Рослину '${plant.name}' видалено"
             )
         )
         plantDao.deletePlant(plant)

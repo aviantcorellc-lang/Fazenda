@@ -6,17 +6,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PlantDao {
-    @Query("SELECT * FROM plants ORDER BY category, name")
+    @Query("SELECT * FROM plants ORDER BY name")
     fun getAllPlants(): Flow<List<PlantEntity>>
 
     @Query("SELECT * FROM plants WHERE id = :id")
     suspend fun getPlantById(id: Long): PlantEntity?
-
-    @Query("SELECT * FROM plants WHERE category = :category ORDER BY name")
-    fun getPlantsByCategory(category: String): Flow<List<PlantEntity>>
-
-    @Query("SELECT DISTINCT category FROM plants ORDER BY category")
-    fun getAllCategories(): Flow<List<String>>
 
     @Query("SELECT COUNT(*) FROM plants")
     suspend fun getPlantCount(): Int

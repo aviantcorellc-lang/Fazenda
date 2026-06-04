@@ -7,12 +7,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fazenda.app.R
+import com.fazenda.app.data.dao.CategoryDao
 import com.fazenda.app.data.dao.ChemicalDao
 import com.fazenda.app.data.dao.LogDao
 import com.fazenda.app.data.dao.PlantDao
 import com.fazenda.app.data.dao.PlantPhotoDao
 import com.fazenda.app.data.dao.ScheduleDao
 import com.fazenda.app.data.dao.ZoneDao
+import com.fazenda.app.data.entity.CategoryEntity
 import com.fazenda.app.data.entity.ChemicalEntity
 import com.fazenda.app.data.entity.LogEntity
 import com.fazenda.app.data.entity.PlantEntity
@@ -35,9 +37,10 @@ import java.time.format.DateTimeFormatter
         ChemicalEntity::class,
         ScheduleEntity::class,
         LogEntity::class,
-        ZoneEntity::class
+        ZoneEntity::class,
+        CategoryEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -47,6 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun scheduleDao(): ScheduleDao
     abstract fun logDao(): LogDao
     abstract fun zoneDao(): ZoneDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile
@@ -56,6 +60,11 @@ abstract class AppDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: buildDatabase(context).also { INSTANCE = it }
             }
+        }
+
+        fun closeDatabase() {
+            INSTANCE?.close()
+            INSTANCE = null
         }
 
         private fun buildDatabase(context: Context): AppDatabase {
@@ -71,13 +80,8 @@ abstract class AppDatabase : RoomDatabase() {
     ) : RoomDatabase.Callback() {
 
         private val photoExtensions = mapOf(
-            "1" to "png", "2" to "jpg", "3" to "png", "4" to "jpg",
-            "5" to "png", "6" to "jpg", "7" to "png", "8" to "jpg",
-            "9" to "jpg", "10" to "png", "11" to "jpg", "12" to "png",
-            "13" to "png", "14" to "jpg", "15" to "png", "16" to "png",
-            "17" to "png", "18" to "jpg", "19" to "png", "20" to "png",
-            "21" to "png", "22" to "png", "23" to "jpg", "24" to "jpg",
-            "25" to "png", "26" to "jpg"
+            "10" to "png",
+            "12" to "png"
         )
 
         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -101,6 +105,7 @@ abstract class AppDatabase : RoomDatabase() {
                 db.beginTransaction()
                 try {
                     seedZonesFromRawDb(context, db)
+                    seedCategoriesFromRawDb(context, db)
                     seedPlantsFromRawDb(context, db)
                     seedChemicalsFromRawDb(context, db)
                     seedSchedulesFromRawDb(context, db)
@@ -115,7 +120,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private fun hasAnySeedData(db: SupportSQLiteDatabase): Boolean {
-            val tables = listOf("plants", "plant_photos", "chemicals", "schedules", "logs", "zones")
+            val tables = listOf("plants", "plant_photos", "chemicals", "schedules", "logs", "zones", "categories")
             return tables.any { table ->
                 db.query("SELECT COUNT(*) FROM $table").use { cursor ->
                     cursor.moveToFirst()
@@ -142,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun insertPlant(
             db: SupportSQLiteDatabase,
-            category: String,
+            categoryId: Long?,
             name: String,
             zoneId: Long?,
             row: Float?,
@@ -154,10 +159,10 @@ abstract class AppDatabase : RoomDatabase() {
         ): Long {
             db.execSQL(
                 """
-                INSERT INTO plants (category, name, zoneId, row, position, comment, photoPath, latitude, longitude)
+                INSERT INTO plants (categoryId, name, zoneId, row, position, comment, photoPath, latitude, longitude)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
-                arrayOf(category, name, zoneId, row, position, comment, photoPath, latitude, longitude)
+                arrayOf(categoryId, name, zoneId, row, position, comment, photoPath, latitude, longitude)
             )
 
             db.query("SELECT id FROM plants ORDER BY id DESC LIMIT 1").use { cursor ->
@@ -204,11 +209,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private suspend fun seedCategoriesFromRawDb(context: Context, db: SupportSQLiteDatabase) {
+            val categoryNames = mutableSetOf<String>()
+            context.resources.openRawResource(R.raw.plants).use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    reader.readLines().filter { it.isNotBlank() }.drop(1).forEach { line ->
+                        try {
+                            val parts = CsvParser.parseLine(line)
+                            if (parts.size >= 3) {
+                                val category = parts[1].trim()
+                                if (category.isNotBlank()) {
+                                    categoryNames.add(category)
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+            val sortedCategories = categoryNames.sorted()
+            for (name in sortedCategories) {
+                db.execSQL("INSERT OR IGNORE INTO categories (name) VALUES (?)", arrayOf(name))
+            }
+        }
+
         private suspend fun seedPlantsFromRawDb(context: Context, db: SupportSQLiteDatabase) {
             val zoneMap = mutableMapOf<String, Long>()
             db.query("SELECT id, name FROM zones").use { cursor ->
                 while (cursor.moveToNext()) {
                     zoneMap[cursor.getString(1)] = cursor.getLong(0)
+                }
+            }
+            val categoryMap = mutableMapOf<String, Long>()
+            db.query("SELECT id, name FROM categories").use { cursor ->
+                while (cursor.moveToNext()) {
+                    categoryMap[cursor.getString(1)] = cursor.getLong(0)
                 }
             }
 
@@ -230,10 +264,11 @@ abstract class AppDatabase : RoomDatabase() {
                                     val latitude = parts[10].replace(',', '.').toDoubleOrNull()
                                     val longitude = parts[11].replace(',', '.').toDoubleOrNull()
                                     val zoneId = zoneMap[location]
+                                    val categoryId = categoryMap[category]
 
                                     val plantId = insertPlant(
                                         db = db,
-                                        category = category,
+                                        categoryId = categoryId,
                                         name = name,
                                         zoneId = zoneId,
                                         row = row,
@@ -257,10 +292,11 @@ abstract class AppDatabase : RoomDatabase() {
                                     val row = extractNumber(location, "Ряд")
                                     val position = extractNumber(location, "Номер")
                                     val zoneId = if (location.isNotBlank()) zoneMap[location] else null
+                                    val categoryId = categoryMap[category]
 
                                     val plantId = insertPlant(
                                         db = db,
-                                        category = category,
+                                        categoryId = categoryId,
                                         name = name,
                                         zoneId = zoneId,
                                         row = row,

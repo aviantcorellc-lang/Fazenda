@@ -14,4 +14,5 @@ class FazendaApplication : Application() {
     val chemicalRepository by lazy { ChemicalRepository(database.chemicalDao()) }
     val scheduleRepository by lazy { ScheduleRepository(database.scheduleDao()) }
     val zoneRepository by lazy { ZoneRepository(database.zoneDao()) }
+    val categoryRepository by lazy { CategoryRepository(database.categoryDao()) }
 }

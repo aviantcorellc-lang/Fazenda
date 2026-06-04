@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Grass
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fazenda.app.data.entity.CategoryEntity
 import com.fazenda.app.data.entity.PlantEntity
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
@@ -36,25 +38,26 @@ fun CatalogScreen(
     onPlantEdit: (Long) -> Unit = {},
     onAddPlant: () -> Unit = {},
     onZonesClick: () -> Unit = {},
+    onCategoriesClick: () -> Unit = {},
     catalogViewModel: CatalogViewModel = viewModel()
 ) {
-    val plantsByCategory by catalogViewModel.plantsByCategory.collectAsState()
     val categories by catalogViewModel.categories.collectAsState()
     val allPlants by catalogViewModel.allPlants.collectAsState()
     val zones by catalogViewModel.zones.collectAsState()
     val isLoading by catalogViewModel.isLoading.collectAsState()
 
     val zoneMap = remember(zones) { zones.associateBy { it.id } }
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
     var expanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
 
-    val filteredPlants = if (selectedCategory == null) {
+    val filteredPlants = if (selectedCategoryId == null) {
         allPlants
     } else {
-        plantsByCategory[selectedCategory] ?: emptyList()
+        allPlants.filter { it.categoryId == selectedCategoryId }
     }
 
     val searchFilteredPlants = if (searchQuery.isBlank()) {
@@ -62,8 +65,9 @@ fun CatalogScreen(
     } else {
         filteredPlants.filter { plant ->
             val zoneName = plant.zoneId?.let { zoneMap[it]?.name } ?: ""
+            val catName = plant.categoryId?.let { categoryMap[it]?.name } ?: ""
             plant.name.contains(searchQuery, ignoreCase = true) ||
-            plant.category.contains(searchQuery, ignoreCase = true) ||
+            catName.contains(searchQuery, ignoreCase = true) ||
             zoneName.contains(searchQuery, ignoreCase = true) ||
             plant.row?.toString()?.contains(searchQuery) == true ||
             plant.position?.toString()?.contains(searchQuery) == true
@@ -103,6 +107,9 @@ fun CatalogScreen(
                 TopAppBar(
                     title = { Text("Каталог рослин") },
                     actions = {
+                        IconButton(onClick = onCategoriesClick) {
+                            Icon(Icons.Default.Category, contentDescription = "Категорії")
+                        }
                         IconButton(onClick = onZonesClick) {
                             Icon(Icons.Default.Hub, contentDescription = "Зони")
                         }
@@ -120,16 +127,16 @@ fun CatalogScreen(
                                 DropdownMenuItem(
                                     text = { Text("Всі рослини (А-Я)") },
                                     onClick = {
-                                        selectedCategory = null
+                                        selectedCategoryId = null
                                         expanded = false
                                     }
                                 )
                                 HorizontalDivider()
                                 categories.forEach { category ->
                                     DropdownMenuItem(
-                                        text = { Text(category) },
+                                        text = { Text(category.name) },
                                         onClick = {
-                                            selectedCategory = category
+                                            selectedCategoryId = category.id
                                             expanded = false
                                         }
                                     )
@@ -167,10 +174,12 @@ fun CatalogScreen(
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp)
                 ) {
-                    if (selectedCategory == null) {
+                    if (selectedCategoryId == null) {
                         items(searchFilteredPlants) { plant ->
+                            val catName = plant.categoryId?.let { categoryMap[it]?.name }
                             PlantCard(
                                 plant = plant,
+                                categoryName = catName,
                                 zoneName = plant.zoneId?.let { zoneMap[it]?.name },
                                 onClick = { onPlantClick(plant.id) },
                                 onEdit = { onPlantEdit(plant.id) }
@@ -178,8 +187,9 @@ fun CatalogScreen(
                         }
                     } else {
                         item {
+                            val catName = selectedCategoryId?.let { categoryMap[it]?.name } ?: ""
                             Text(
-                                selectedCategory!!,
+                                catName,
                                 modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     color = MaterialTheme.colorScheme.primary,
@@ -188,8 +198,10 @@ fun CatalogScreen(
                             )
                         }
                         items(searchFilteredPlants) { plant ->
+                            val catName = plant.categoryId?.let { categoryMap[it]?.name }
                             PlantCard(
                                 plant = plant,
+                                categoryName = catName,
                                 zoneName = plant.zoneId?.let { zoneMap[it]?.name },
                                 onClick = { onPlantClick(plant.id) },
                                 onEdit = { onPlantEdit(plant.id) }
@@ -203,7 +215,7 @@ fun CatalogScreen(
 }
 
 @Composable
-fun PlantCard(plant: PlantEntity, zoneName: String?, onClick: () -> Unit, onEdit: () -> Unit = {}) {
+fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onClick: () -> Unit, onEdit: () -> Unit = {}) {
     val context = LocalContext.current
     val photoModel = PhotoPathResolver.toAsyncImageModel(context, plant.photoPath)
 
@@ -255,17 +267,19 @@ fun PlantCard(plant: PlantEntity, zoneName: String?, onClick: () -> Unit, onEdit
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                plant.category,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                fontWeight = FontWeight.Medium
-                            )
+                        if (categoryName != null) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Text(
+                                    categoryName,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {

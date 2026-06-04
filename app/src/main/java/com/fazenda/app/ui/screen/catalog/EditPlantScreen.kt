@@ -1,6 +1,7 @@
 package com.fazenda.app.ui.screen.catalog
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
@@ -16,6 +17,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Grass
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,18 +35,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.PlantEntity
 import com.fazenda.app.data.entity.ZoneEntity
 import com.fazenda.app.service.FileService
 import com.fazenda.app.service.LocationService
+import com.fazenda.app.service.PlantInfoService
+import com.fazenda.app.ui.component.SearchableDropdown
 import com.fazenda.app.ui.util.PhotoPathResolver
+import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModelFactory
 import com.fazenda.app.ui.viewmodel.ZoneViewModel
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,17 +59,21 @@ fun EditPlantScreen(
     viewModel: PlantDetailsViewModel = viewModel(
         factory = PlantDetailsViewModelFactory(plantId)
     ),
-    zoneViewModel: ZoneViewModel = viewModel()
+    zoneViewModel: ZoneViewModel = viewModel(),
+    categoryViewModel: CategoryViewModel = viewModel()
 ) {
     val plant by viewModel.plant.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val zones by zoneViewModel.zones.collectAsState()
+    val categories by categoryViewModel.categories.collectAsState()
     val context = LocalContext.current
     val fileService = remember(context) { FileService(context) }
     val locationService = remember(context) { LocationService(context) }
+    val plantInfoService = remember { PlantInfoService() }
     val scope = rememberCoroutineScope()
 
-    var categoryText by remember { mutableStateOf("") }
+    var categorySearchText by remember { mutableStateOf("") }
+    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
     var nameText by remember { mutableStateOf("") }
     var selectedZone by remember { mutableStateOf<ZoneEntity?>(null) }
     var rowText by remember { mutableStateOf("") }
@@ -73,7 +84,10 @@ fun EditPlantScreen(
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isGettingLocation by remember { mutableStateOf(false) }
-    var zoneDropdownExpanded by remember { mutableStateOf(false) }
+    var isFetchingInfo by remember { mutableStateOf(false) }
+    var geminiResult by remember { mutableStateOf("") }
+
+    val categoryOptions = remember(categories) { categories.map { it.name } }
 
     val fetchCurrentLocation = {
         scope.launch {
@@ -108,9 +122,11 @@ fun EditPlantScreen(
         selectedPhotoUri = uri
     }
 
-    LaunchedEffect(plant) {
+    LaunchedEffect(plant, categories) {
         plant?.let { p ->
-            categoryText = p.category
+            val catEntity = p.categoryId?.let { id -> categories.find { it.id == id } }
+            categorySearchText = catEntity?.name ?: ""
+            selectedCategoryId = catEntity?.id
             nameText = p.name
             selectedZone = p.zoneId?.let { id -> zones.find { it.id == id } }
             rowText = p.row?.toString() ?: ""
@@ -157,26 +173,31 @@ fun EditPlantScreen(
                             val finalPhotoPath = selectedPhotoUri?.let { fileService.savePhotoFromUri(it) }
                                 ?: currentPhotoPath
 
-                            viewModel.updatePlant(
-                                PlantEntity(
-                                    id = p.id,
-                                    category = categoryText,
-                                    name = nameText,
-                                    zoneId = selectedZone?.id,
-                                    row = rowText.toFloatOrNull(),
-                                    position = positionText.toFloatOrNull(),
-                                    comment = commentText.ifBlank { null },
-                                    photoPath = finalPhotoPath,
-                                    latitude = latitudeText.toDoubleOrNull(),
-                                    longitude = longitudeText.toDoubleOrNull()
+                            scope.launch {
+                                val finalCategoryId = selectedCategoryId
+                                    ?: if (categorySearchText.isNotBlank()) categoryViewModel.findOrCreateCategory(categorySearchText) else null
+
+                                viewModel.updatePlant(
+                                    PlantEntity(
+                                        id = p.id,
+                                        categoryId = finalCategoryId,
+                                        name = nameText,
+                                        zoneId = selectedZone?.id,
+                                        row = rowText.toFloatOrNull(),
+                                        position = positionText.toFloatOrNull(),
+                                        comment = (commentText + if (geminiResult.isNotBlank()) "\n\n---\n$geminiResult" else "").ifBlank { null },
+                                        photoPath = finalPhotoPath,
+                                        latitude = latitudeText.toDoubleOrNull(),
+                                        longitude = longitudeText.toDoubleOrNull()
+                                    )
                                 )
-                            )
 
-                            if (selectedPhotoUri != null && fileService.isManagedInternalPhotoPath(currentPhotoPath) && currentPhotoPath != finalPhotoPath) {
-                                currentPhotoPath?.let { fileService.deletePhoto(it) }
+                                if (selectedPhotoUri != null && fileService.isManagedInternalPhotoPath(currentPhotoPath) && currentPhotoPath != finalPhotoPath) {
+                                    currentPhotoPath?.let { fileService.deletePhoto(it) }
+                                }
+
+                                onNavigateBack()
                             }
-
-                            onNavigateBack()
                         }) {
                             Icon(Icons.Default.Save, contentDescription = "Зберегти")
                         }
@@ -229,11 +250,14 @@ fun EditPlantScreen(
                 }
                 Spacer(modifier = Modifier.height(24.dp))
 
-                OutlinedTextField(
-                    value = categoryText,
-                    onValueChange = { categoryText = it },
-                    label = { Text("Категорія") },
-                    singleLine = true,
+                SearchableDropdown(
+                    value = categorySearchText,
+                    onValueChange = {
+                        categorySearchText = it
+                        selectedCategoryId = categories.find { cat -> cat.name == it }?.id
+                    },
+                    options = categoryOptions,
+                    label = "Категорія",
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -247,36 +271,99 @@ fun EditPlantScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Wikipedia + Gemini section
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            "Інформація про рослину",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                val query = if (categorySearchText.isNotBlank() && nameText.isNotBlank()) "$categorySearchText - $nameText" else nameText.ifBlank { categorySearchText }
+                                if (query.isNotBlank()) {
+                                    isFetchingInfo = true
+                                    scope.launch {
+                                        try {
+                                            val result = plantInfoService.fetchFromWikipedia(query)
+                                            if (result != null) {
+                                                commentText = if (commentText.isBlank()) result.extract
+                                                else "$commentText\n\n${result.extract}"
+                                            } else {
+                                                Toast.makeText(context, "Не знайдено на Wikipedia", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } finally {
+                                            isFetchingInfo = false
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Введіть назву рослини", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isFetchingInfo
+                        ) {
+                            Icon(Icons.Default.TravelExplore, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (isFetchingInfo) "Завантаження..." else "Довантажити з Wikipedia")
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = commentText,
+                            onValueChange = { commentText = it },
+                            label = { Text("Коментар") },
+                            maxLines = 5,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                val query = URLEncoder.encode("${categorySearchText} ${nameText} догляд вирощування", "UTF-8")
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://gemini.google.com?q=$query"))
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Запитати Gemini")
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Відповідь від Gemini:", style = MaterialTheme.typography.labelSmall)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = geminiResult,
+                            onValueChange = { geminiResult = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Вставте відповідь від Gemini...") },
+                            shape = MaterialTheme.shapes.small,
+                            minLines = 3
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text("Розташування", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                ExposedDropdownMenuBox(
-                    expanded = zoneDropdownExpanded,
-                    onExpandedChange = { zoneDropdownExpanded = !zoneDropdownExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedZone?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Зона") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = zoneDropdownExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = zoneDropdownExpanded,
-                        onDismissRequest = { zoneDropdownExpanded = false }
-                    ) {
-                        zones.forEach { zone ->
-                            DropdownMenuItem(
-                                text = { Text(zone.name) },
-                                onClick = {
-                                    selectedZone = zone
-                                    zoneDropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+                SearchableDropdown(
+                    value = selectedZone?.name ?: "",
+                    onValueChange = { zoneName -> selectedZone = zones.find { it.name == zoneName } },
+                    options = zones.map { it.name },
+                    label = "Зона",
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
@@ -299,15 +386,6 @@ fun EditPlantScreen(
                         keyboardType = KeyboardType.Number
                     ),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = commentText,
-                    onValueChange = { commentText = it },
-                    label = { Text("Коментар") },
-                    maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(24.dp))

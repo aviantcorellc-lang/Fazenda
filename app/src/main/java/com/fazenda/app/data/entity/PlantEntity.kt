@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class PlantEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val category: String,
+    val categoryId: Long? = null,
     val name: String,
     val zoneId: Long? = null,
     val row: Float? = null,

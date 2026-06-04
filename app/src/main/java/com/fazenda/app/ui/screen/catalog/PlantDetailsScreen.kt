@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.LogEntity
 import com.fazenda.app.ui.util.PhotoPathResolver
+import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModelFactory
 import com.fazenda.app.ui.viewmodel.ZoneViewModel
@@ -49,16 +50,19 @@ fun PlantDetailsScreen(
     plantDetailsViewModel: PlantDetailsViewModel = viewModel(
         factory = PlantDetailsViewModelFactory(plantId)
     ),
-    zoneViewModel: ZoneViewModel = viewModel()
+    zoneViewModel: ZoneViewModel = viewModel(),
+    categoryViewModel: CategoryViewModel = viewModel()
 ) {
     val plant by plantDetailsViewModel.plant.collectAsState()
     val plantPhotos by plantDetailsViewModel.plantPhotos.collectAsState()
     val plantLogs by plantDetailsViewModel.plantLogs.collectAsState()
     val isLoading by plantDetailsViewModel.isLoading.collectAsState()
     val zones by zoneViewModel.zones.collectAsState()
+    val categories by categoryViewModel.categories.collectAsState()
     val context = LocalContext.current
 
     val zoneMap = remember(zones) { zones.associateBy { it.id } }
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
     val addPhotoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -113,6 +117,7 @@ fun PlantDetailsScreen(
             val primaryPhotoPath = p.photoPath ?: plantPhotos.firstOrNull()?.photoPath
             val primaryPhotoModel = PhotoPathResolver.toAsyncImageModel(context, primaryPhotoPath)
             val zoneName = p.zoneId?.let { zoneMap[it]?.name }
+            val categoryName = p.categoryId?.let { categoryMap[it]?.name } ?: ""
             val galleryPhotos = when {
                 p.photoPath != null -> plantPhotos.filterNot { it.photoPath == p.photoPath }
                 plantPhotos.isNotEmpty() -> plantPhotos.drop(1)
@@ -224,7 +229,7 @@ fun PlantDetailsScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                p.category,
+                                categoryName,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontWeight = FontWeight.W500

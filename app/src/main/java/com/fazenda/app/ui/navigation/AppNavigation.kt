@@ -17,6 +17,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fazenda.app.ui.screen.catalog.AddPlantScreen
+import com.fazenda.app.ui.screen.catalog.CategoriesScreen
 import com.fazenda.app.ui.screen.catalog.CatalogScreen
 import com.fazenda.app.ui.screen.catalog.EditPlantScreen
 import com.fazenda.app.ui.screen.catalog.PlantDetailsScreen
@@ -41,6 +42,7 @@ sealed class DetailScreen(val route: String) {
     data object AddPlant : DetailScreen("add_plant")
     data object CreateLog : DetailScreen("create_log")
     data object Zones : DetailScreen("zones")
+    data object Categories : DetailScreen("categories")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +107,9 @@ fun AppNavigation() {
                     },
                     onZonesClick = {
                         navController.navigate(DetailScreen.Zones.route)
+                    },
+                    onCategoriesClick = {
+                        navController.navigate(DetailScreen.Categories.route)
                     }
                 )
             }
@@ -154,6 +159,12 @@ fun AppNavigation() {
 
             composable(DetailScreen.Zones.route) {
                 ZonesScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(DetailScreen.Categories.route) {
+                CategoriesScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

@@ -35,6 +35,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.ui.util.PhotoPathResolver
+import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.CreateLogViewModel
 import java.util.*
 
@@ -42,12 +43,15 @@ import java.util.*
 @Composable
 fun CreateLogScreen(
     onNavigateBack: () -> Unit,
-    createLogViewModel: CreateLogViewModel = viewModel()
+    createLogViewModel: CreateLogViewModel = viewModel(),
+    categoryViewModel: CategoryViewModel = viewModel()
 ) {
     val plants by createLogViewModel.plants.collectAsState()
     val selectedPlant by createLogViewModel.selectedPlant.collectAsState()
     val selectedActionType by createLogViewModel.selectedActionType.collectAsState()
     val saved by createLogViewModel.saved.collectAsState()
+    val categories by categoryViewModel.categories.collectAsState()
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val isLoading by createLogViewModel.isLoading.collectAsState()
 
     val context = LocalContext.current
@@ -173,7 +177,7 @@ fun CreateLogScreen(
                     onExpandedChange = { showPlantDropdown = it }
                 ) {
                     OutlinedTextField(
-                        value = selectedPlant?.let { "${it.name} (${it.category})" } ?: "",
+                        value = selectedPlant?.let { p -> "${p.name} (${p.categoryId?.let { categoryMap[it]?.name } ?: "?"})" } ?: "",
                         onValueChange = {},
                         readOnly = true,
                         placeholder = { Text("Виберіть рослину") },
@@ -187,7 +191,7 @@ fun CreateLogScreen(
                     ) {
                         plants.forEach { plant ->
                             DropdownMenuItem(
-                                text = { Text("${plant.name} (${plant.category})") },
+                                text = { Text("${plant.name} (${plant.categoryId?.let { categoryMap[it]?.name } ?: "?"})") },
                                 onClick = {
                                     createLogViewModel.setSelectedPlant(plant)
                                     showPlantDropdown = false
