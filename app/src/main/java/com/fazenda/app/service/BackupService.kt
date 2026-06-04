@@ -186,22 +186,25 @@ class BackupService(private val context: Context) {
 
             var restoredPhotoCount = 0
 
+            var foundDb = false
+
             ZipInputStream(FileInputStream(tempZip)).use { zis ->
                 var entry: ZipEntry? = zis.nextEntry
                 while (entry != null) {
                     val entryName = entry.name
                     when {
-                        entryName == dbName -> {
+                        entryName == dbName || entryName == "fazenda_app.db" -> {
+                            foundDb = true
                             FileOutputStream(dbPath).use { output ->
                                 zis.copyTo(output)
                             }
                         }
-                        entryName == "$dbName-wal" -> {
+                        entryName == "$dbName-wal" || entryName == "fazenda_app.db-wal" -> {
                             FileOutputStream(walFile).use { output ->
                                 zis.copyTo(output)
                             }
                         }
-                        entryName == "$dbName-shm" -> {
+                        entryName == "$dbName-shm" || entryName == "fazenda_app.db-shm" -> {
                             FileOutputStream(shmFile).use { output ->
                                 zis.copyTo(output)
                             }
@@ -223,6 +226,12 @@ class BackupService(private val context: Context) {
                 }
             }
 
+            if (!foundDb && !dbPath.exists()) {
+                android.util.Log.e("BackupService", "В бекапі не знайдено файлу бази даних")
+                tempZip.delete()
+                return false
+            }
+
             migrateAssetPathsToPhotos(dbPath)
 
             val missingPhotos = verifyPhotoIntegrity(dbPath)
@@ -231,6 +240,8 @@ class BackupService(private val context: Context) {
             if (missingPhotos > 0) {
                 android.util.Log.w("BackupService", "Відновлення завершено, але $missingPhotos фото відсутні")
             }
+
+            android.util.Log.i("BackupService", "Імпорт успішно завершено: БД відновлено, фото: $restoredPhotoCount")
 
             true
         } catch (e: Exception) {
