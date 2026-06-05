@@ -325,7 +325,6 @@ fun AddPlantScreen(
                 onValueChange = { zoneName -> selectedZone = zones.find { it.name == zoneName } },
                 options = zones.map { it.name },
                 label = "Зона",
-                readOnly = true,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(12.dp))

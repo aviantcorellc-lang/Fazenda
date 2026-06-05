@@ -13,8 +13,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SmartToy
@@ -43,12 +45,14 @@ import com.fazenda.app.service.FileService
 import com.fazenda.app.service.LocationService
 import com.fazenda.app.service.PlantInfoService
 import com.fazenda.app.ui.component.SearchableDropdown
+import com.fazenda.app.ui.screen.journal.CameraCaptureDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModelFactory
 import com.fazenda.app.ui.viewmodel.ZoneViewModel
 import kotlinx.coroutines.launch
+import java.io.File
 import java.net.URLEncoder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,6 +86,8 @@ fun EditPlantScreen(
     var latitudeText by remember { mutableStateOf("") }
     var longitudeText by remember { mutableStateOf("") }
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraPhotoFile by remember { mutableStateOf<File?>(null) }
+    var showCamera by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isGettingLocation by remember { mutableStateOf(false) }
     var isFetchingInfo by remember { mutableStateOf(false) }
@@ -122,6 +128,39 @@ fun EditPlantScreen(
         selectedPhotoUri = uri
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showCamera = true
+        } else {
+            Toast.makeText(context, "Потрібен дозвіл на камеру", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun openCamera() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            showCamera = true
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    if (showCamera) {
+        CameraCaptureDialog(
+            onDismiss = { showCamera = false },
+            onPhotoCaptured = { file ->
+                val savedPath = fileService.savePhotoFromFile(file)
+                file.delete()
+                cameraPhotoFile = File(savedPath)
+                showCamera = false
+            }
+        )
+    }
+
     LaunchedEffect(plant, categories) {
         plant?.let { p ->
             val catEntity = p.categoryId?.let { id -> categories.find { it.id == id } }
@@ -154,6 +193,7 @@ fun EditPlantScreen(
     } else {
         val p = plant!!
         val mainPhotoModel = when {
+            cameraPhotoFile != null -> Uri.fromFile(cameraPhotoFile)
             selectedPhotoUri != null -> selectedPhotoUri
             else -> PhotoPathResolver.toAsyncImageModel(context, p.photoPath)
         }
@@ -170,7 +210,8 @@ fun EditPlantScreen(
                     actions = {
                         IconButton(onClick = {
                             val currentPhotoPath = p.photoPath
-                            val finalPhotoPath = selectedPhotoUri?.let { fileService.savePhotoFromUri(it) }
+                            val finalPhotoPath = cameraPhotoFile?.absolutePath
+                                ?: selectedPhotoUri?.let { fileService.savePhotoFromUri(it) }
                                 ?: currentPhotoPath
 
                             scope.launch {
@@ -192,7 +233,7 @@ fun EditPlantScreen(
                                     )
                                 )
 
-                                if (selectedPhotoUri != null && fileService.isManagedInternalPhotoPath(currentPhotoPath) && currentPhotoPath != finalPhotoPath) {
+                                if (fileService.isManagedInternalPhotoPath(currentPhotoPath) && currentPhotoPath != finalPhotoPath) {
                                     currentPhotoPath?.let { fileService.deletePhoto(it) }
                                 }
 
@@ -242,11 +283,26 @@ fun EditPlantScreen(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Button(
-                    onClick = { uriLauncher.launch("image/*") },
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Змінити фото")
+                    OutlinedButton(
+                        onClick = { uriLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Галерея")
+                    }
+                    Button(
+                        onClick = { openCamera() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Камера")
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -361,7 +417,6 @@ fun EditPlantScreen(
                     onValueChange = { zoneName -> selectedZone = zones.find { it.name == zoneName } },
                     options = zones.map { it.name },
                     label = "Зона",
-                    readOnly = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
