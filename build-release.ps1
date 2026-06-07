@@ -66,14 +66,16 @@ Write-Host "`nOK: $output $(('{0:N0}' -f ((Get-Item $output).Length / 1KB))) KB"
 
 # ---------- Publish to GitHub ----------
 if ($Publish) {
-    if (-not (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+    $gh = Get-Command "gh.exe" -ErrorAction SilentlyContinue
+    if (-not $gh) { $gh = Get-Command "C:\Program Files\GitHub CLI\gh.exe" -ErrorAction SilentlyContinue }
+    if (-not $gh) {
         Write-Host "GitHub CLI (gh) not found. Install from https://cli.github.com/" -ForegroundColor Red; exit 1
     }
     $tag = "v$newName"
     $releaseTitle = "Fazenda v$newName"
     $changeLog = "Changes for v$newName`n`n- Auto-generated release"
 
-    gh auth status 2>&1 | Out-Null
+    & $gh.Path auth status 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Host "Not logged in to GitHub. Run 'gh auth login'" -ForegroundColor Red; exit 1 }
 
     Write-Host "`nCreating GitHub Release..." -ForegroundColor Cyan
@@ -84,7 +86,7 @@ if ($Publish) {
         Write-Host "Tag $tag already exists" -ForegroundColor Yellow
     }
 
-    gh release create $tag "$output" --title $releaseTitle --notes $changeLog 2>&1
+    & $gh.Path release create $tag "$output" --title $releaseTitle --notes $changeLog 2>&1
     if ($LASTEXITCODE -ne 0) { Write-Host "Release failed" -ForegroundColor Red; exit 1 }
     Write-Host "Published: https://github.com/aviantcorellc-lang/Fazenda/releases/tag/$tag" -ForegroundColor Green
 }
