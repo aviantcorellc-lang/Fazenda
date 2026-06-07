@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.RestorePage
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -46,6 +47,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun DashboardScreen(
     onNavigateToCreateLog: () -> Unit,
+    onNavigateToMap: () -> Unit = {},
     dashboardViewModel: DashboardViewModel = viewModel()
 ) {
     val schedules by dashboardViewModel.schedules.collectAsState()
@@ -124,6 +126,9 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("План дій") },
                 actions = {
+                    IconButton(onClick = onNavigateToMap) {
+                        Icon(Icons.Default.Map, contentDescription = "Мапа")
+                    }
                     Box {
                         IconButton(onClick = { showExportMenu = true }) {
                             Icon(Icons.Default.Backup, contentDescription = "Експорт")

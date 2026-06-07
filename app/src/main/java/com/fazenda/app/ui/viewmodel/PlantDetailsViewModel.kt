@@ -110,6 +110,17 @@ class PlantDetailsViewModel(
         }
     }
 
+    fun setPlantMainPhoto(photo: PlantPhotoEntity) {
+        viewModelScope.launch {
+            val currentPlant = _plant.value ?: return@launch
+            if (currentPlant.photoPath != photo.photoPath) {
+                val updatedPlant = currentPlant.copy(photoPath = photo.photoPath)
+                plantRepository.updatePlant(updatedPlant)
+                _plant.value = updatedPlant
+            }
+        }
+    }
+
     fun updatePlant(plant: PlantEntity) {
         viewModelScope.launch {
             plantRepository.updatePlant(plant)

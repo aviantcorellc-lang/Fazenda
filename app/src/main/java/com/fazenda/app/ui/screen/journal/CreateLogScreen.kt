@@ -1,10 +1,11 @@
 package com.fazenda.app.ui.screen.journal
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.CreateLogViewModel
@@ -61,6 +64,23 @@ fun CreateLogScreen(
     var showPlantDropdown by remember { mutableStateOf(false) }
     var showActionTypeDropdown by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val hasUnsavedChanges = comment.isNotBlank() || aiDiagnosis.isNotBlank() ||
+        selectedPlant != null || selectedActionType != null ||
+        createLogViewModel.photoPath.value != null
+
+    BackHandler(enabled = hasUnsavedChanges && !saved) {
+        showDiscardDialog = true
+    }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            createLogViewModel.savePhotoFromUri(uri)
+        }
+    }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -107,7 +127,9 @@ fun CreateLogScreen(
             TopAppBar(
                 title = { Text("Новий запис") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        if (hasUnsavedChanges) showDiscardDialog = true else onNavigateBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 }
@@ -245,14 +267,19 @@ fun CreateLogScreen(
 
                 if (currentPhotoPath != null) {
                     val imagePath = PhotoPathResolver.toAsyncImageModel(context, currentPhotoPath)
+                    var showLogImageViewer by remember { mutableStateOf(false) }
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-                            AsyncImage(
-                                model = imagePath,
-                                contentDescription = "Фото",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            Box(
+                                modifier = Modifier.fillMaxSize().clickable { showLogImageViewer = true }
+                            ) {
+                                AsyncImage(
+                                    model = imagePath,
+                                    contentDescription = "Фото",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                             IconButton(
                                 onClick = { createLogViewModel.clearPhoto() },
                                 modifier = Modifier.align(Alignment.TopEnd)
@@ -264,24 +291,47 @@ fun CreateLogScreen(
                                 )
                             }
                         }
+                        if (showLogImageViewer) {
+                            ImageViewerDialog(imageModel = imagePath, onDismiss = { showLogImageViewer = false })
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { openCamera() },
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Замінити фото")
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { openCamera() },
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Камера")
+                            }
+                            OutlinedButton(
+                                onClick = { imagePickerLauncher.launch("image/*") },
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Галерея")
+                            }
                         }
                     }
                 } else {
-                    OutlinedButton(
-                        onClick = { openCamera() },
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Зробити фото")
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { openCamera() },
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Камера")
+                        }
+                        OutlinedButton(
+                            onClick = { imagePickerLauncher.launch("image/*") },
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Галерея")
+                        }
                     }
                 }
 
@@ -352,5 +402,26 @@ fun CreateLogScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text("Скасувати запис?") },
+            text = { Text("Незбережені дані будуть втрачені.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    onNavigateBack()
+                }) {
+                    Text("Скасувати", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text("Продовжити")
+                }
+            }
+        )
     }
 }

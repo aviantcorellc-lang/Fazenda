@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -26,6 +27,8 @@ import com.fazenda.app.ui.screen.catalog.ZonesScreen
 import com.fazenda.app.ui.screen.dashboard.DashboardScreen
 import com.fazenda.app.ui.screen.journal.CreateLogScreen
 import com.fazenda.app.ui.screen.journal.JournalScreen
+import com.fazenda.app.ui.screen.map.MapScreen
+import com.fazenda.app.ui.viewmodel.CatalogViewModel
 
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
     data object Dashboard : Screen("dashboard", Icons.Default.Dashboard, "План")
@@ -44,6 +47,7 @@ sealed class DetailScreen(val route: String) {
     data object CreateLog : DetailScreen("create_log")
     data object Zones : DetailScreen("zones")
     data object Categories : DetailScreen("categories")
+    data object Map : DetailScreen("map")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +95,9 @@ fun AppNavigation() {
                 DashboardScreen(
                     onNavigateToCreateLog = {
                         navController.navigate(DetailScreen.CreateLog.route)
+                    },
+                    onNavigateToMap = {
+                        navController.navigate(DetailScreen.Map.route)
                     }
                 )
             }
@@ -166,6 +173,18 @@ fun AppNavigation() {
 
             composable(DetailScreen.Categories.route) {
                 CategoriesScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(DetailScreen.Map.route) {
+                val catalogViewModel: CatalogViewModel = viewModel()
+                val plants by catalogViewModel.allPlants.collectAsState()
+                MapScreen(
+                    plants = plants,
+                    onPlantClick = { plantId ->
+                        navController.navigate(DetailScreen.PlantDetails.createRoute(plantId))
+                    },
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

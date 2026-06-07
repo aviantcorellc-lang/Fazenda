@@ -3,6 +3,7 @@ package com.fazenda.app.ui.screen.catalog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,13 +15,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.LogEntity
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
 import com.fazenda.app.ui.viewmodel.PlantDetailsViewModel
@@ -60,6 +66,10 @@ fun PlantDetailsScreen(
     val zones by zoneViewModel.zones.collectAsState()
     val categories by categoryViewModel.categories.collectAsState()
     val context = LocalContext.current
+    var showMainImageViewer by remember { mutableStateOf(false) }
+    var showGalleryImageViewer by remember { mutableStateOf(false) }
+    var selectedGalleryModel by remember { mutableStateOf<Any?>(null) }
+    var menuPhotoId by remember { mutableStateOf<Long?>(null) }
 
     val zoneMap = remember(zones) { zones.associateBy { it.id } }
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
@@ -90,7 +100,7 @@ fun PlantDetailsScreen(
                     onClick = { addPhotoLauncher.launch("image/*") },
                     containerColor = MaterialTheme.colorScheme.secondary
                 ) {
-                    Icon(Icons.Default.PhotoCamera, contentDescription = "Додати фото")
+                    Icon(Icons.Default.Image, contentDescription = "Додати фото")
                 }
                 FloatingActionButton(onClick = onEditClick) {
                     Icon(Icons.Default.Edit, contentDescription = "Редагувати")
@@ -124,12 +134,20 @@ fun PlantDetailsScreen(
                 else -> emptyList()
             }
 
+            if (showMainImageViewer) {
+                ImageViewerDialog(imageModel = primaryPhotoModel, onDismiss = { showMainImageViewer = false })
+            }
+            if (showGalleryImageViewer) {
+                ImageViewerDialog(imageModel = selectedGalleryModel, onDismiss = { showGalleryImageViewer = false })
+            }
+
             LazyColumn(
                 modifier = Modifier.padding(paddingValues)
             ) {
                 item {
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(250.dp),
+                        modifier = Modifier.fillMaxWidth().height(250.dp)
+                            .clickable(enabled = primaryPhotoModel != null) { showMainImageViewer = true },
                         contentAlignment = Alignment.Center
                     ) {
                         if (primaryPhotoModel != null) {
@@ -176,8 +194,8 @@ fun PlantDetailsScreen(
                                         .height(150.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .combinedClickable(
-                                            onClick = {},
-                                            onLongClick = { plantDetailsViewModel.deletePlantPhoto(photo) }
+                                            onClick = { selectedGalleryModel = photoModel; showGalleryImageViewer = true },
+                                            onLongClick = { menuPhotoId = photo.id }
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -203,13 +221,34 @@ fun PlantDetailsScreen(
                                             }
                                         }
                                     }
+                                    DropdownMenu(
+                                        expanded = menuPhotoId == photo.id,
+                                        onDismissRequest = { menuPhotoId = null }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Зробити головним") },
+                                            onClick = {
+                                                menuPhotoId = null
+                                                plantDetailsViewModel.setPlantMainPhoto(photo)
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Видалити") },
+                                            onClick = {
+                                                menuPhotoId = null
+                                                plantDetailsViewModel.deletePlantPhoto(photo)
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                     item {
                         Text(
-                            "Довге натискання для видалення фото",
+                            "Довге натискання — меню дій з фото",
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall.copy(color = Color.Gray)
                         )

@@ -30,6 +30,10 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    val selectedCategoryId = MutableStateFlow<Long?>(null)
+    val searchQuery = MutableStateFlow("")
+    val showSearch = MutableStateFlow(false)
+
     init {
         viewModelScope.launch {
             zoneRepository.allZones.collect { list ->

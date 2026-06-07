@@ -5,10 +5,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import java.net.URLEncoder
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -16,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Save
@@ -44,6 +47,7 @@ import com.fazenda.app.data.entity.ZoneEntity
 import com.fazenda.app.service.FileService
 import com.fazenda.app.service.LocationService
 import com.fazenda.app.service.PlantInfoService
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.component.SearchableDropdown
 import com.fazenda.app.ui.viewmodel.AddPlantViewModel
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
@@ -77,9 +81,21 @@ fun AddPlantScreen(
     var latitudeText by remember { mutableStateOf("") }
     var longitudeText by remember { mutableStateOf("") }
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var showAddImageViewer by remember { mutableStateOf(false) }
     var isGettingLocation by remember { mutableStateOf(false) }
     var isFetchingInfo by remember { mutableStateOf(false) }
     var geminiResult by remember { mutableStateOf("") }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val hasUnsavedChanges = nameText.isNotBlank() || selectedPhotoUri != null ||
+        categorySearchText.isNotBlank() || selectedZone != null ||
+        rowText.isNotBlank() || positionText.isNotBlank() ||
+        commentText.isNotBlank() || latitudeText.isNotBlank() ||
+        longitudeText.isNotBlank()
+
+    BackHandler(enabled = hasUnsavedChanges && !created) {
+        showDiscardDialog = true
+    }
 
     val categoryOptions = remember(categories) { categories.map { it.name } }
 
@@ -127,7 +143,9 @@ fun AddPlantScreen(
             CenterAlignedTopAppBar(
                 title = { Text("Додати рослину") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        if (hasUnsavedChanges) showDiscardDialog = true else onNavigateBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
@@ -170,12 +188,20 @@ fun AddPlantScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            if (showAddImageViewer && selectedPhotoUri != null) {
+                ImageViewerDialog(imageModel = selectedPhotoUri, onDismiss = { showAddImageViewer = false })
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
                     .background(MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium)
                     .align(Alignment.CenterHorizontally)
+                    .then(
+                        if (selectedPhotoUri != null) Modifier.clickable { showAddImageViewer = true }
+                        else Modifier
+                    )
             ) {
                 if (selectedPhotoUri != null) {
                     AsyncImage(
@@ -402,7 +428,60 @@ fun AddPlantScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (isGettingLocation) "Визначення..." else "Визначити моє місцезнаходження")
             }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    if (nameText.isNotBlank() && (selectedCategoryId != null || categorySearchText.isNotBlank())) {
+                        scope.launch {
+                            val finalCategoryId = selectedCategoryId
+                                ?: categoryViewModel.findOrCreateCategory(categorySearchText)
+                            val savedPhotoPath = selectedPhotoUri?.let { fileService.savePhotoFromUri(it) }
+                            viewModel.addPlant(
+                                PlantEntity(
+                                    categoryId = finalCategoryId,
+                                    name = nameText,
+                                    zoneId = selectedZone?.id,
+                                    row = rowText.toFloatOrNull(),
+                                    position = positionText.toFloatOrNull(),
+                                    comment = (commentText + if (geminiResult.isNotBlank()) "\n\n---\n$geminiResult" else "").ifBlank { null },
+                                    photoPath = savedPhotoPath,
+                                    latitude = latitudeText.toDoubleOrNull(),
+                                    longitude = longitudeText.toDoubleOrNull()
+                                )
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                enabled = nameText.isNotBlank() && (selectedCategoryId != null || categorySearchText.isNotBlank())
+            ) {
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Зберегти рослину")
+            }
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text("Скасувати зміни?") },
+            text = { Text("Введені дані будуть втрачені.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    onNavigateBack()
+                }) {
+                    Text("Скасувати", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text("Продовжити редагування")
+                }
+            }
+        )
     }
 }

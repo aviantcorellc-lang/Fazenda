@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +21,7 @@ import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.LogActionTypes
 import com.fazenda.app.data.entity.LogEntity
 import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.JournalViewModel
 import kotlinx.coroutines.launch
@@ -94,6 +96,13 @@ fun LogCard(
     onDelete: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("uk", "UA")) }
+    val context = LocalContext.current
+    var showImageViewer by remember { mutableStateOf(false) }
+    val logPhotoModel = log.photoPath?.let { PhotoPathResolver.toAsyncImageModel(context, it) }
+
+    if (showImageViewer) {
+        ImageViewerDialog(imageModel = logPhotoModel, onDismiss = { showImageViewer = false })
+    }
 
     Card(shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -143,16 +152,20 @@ fun LogCard(
 
             if (log.photoPath != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                val context = LocalContext.current
-                val imagePath = PhotoPathResolver.toAsyncImageModel(context, log.photoPath)
-                AsyncImage(
-                    model = imagePath,
-                    contentDescription = "Фото",
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 150.dp),
-                    contentScale = ContentScale.Crop
-                )
+                        .heightIn(max = 150.dp)
+                        .clickable { showImageViewer = true }
+                ) {
+                    AsyncImage(
+                        model = logPhotoModel,
+                        contentDescription = "Фото",
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
 
             if (!log.comment.isNullOrBlank()) {

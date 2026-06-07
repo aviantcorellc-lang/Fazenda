@@ -5,9 +5,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +46,7 @@ import com.fazenda.app.data.entity.ZoneEntity
 import com.fazenda.app.service.FileService
 import com.fazenda.app.service.LocationService
 import com.fazenda.app.service.PlantInfoService
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.component.SearchableDropdown
 import com.fazenda.app.ui.screen.journal.CameraCaptureDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
@@ -92,6 +95,8 @@ fun EditPlantScreen(
     var isGettingLocation by remember { mutableStateOf(false) }
     var isFetchingInfo by remember { mutableStateOf(false) }
     var geminiResult by remember { mutableStateOf("") }
+    var initialized by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
 
     val categoryOptions = remember(categories) { categories.map { it.name } }
 
@@ -162,18 +167,37 @@ fun EditPlantScreen(
     }
 
     LaunchedEffect(plant, categories) {
-        plant?.let { p ->
-            val catEntity = p.categoryId?.let { id -> categories.find { it.id == id } }
-            categorySearchText = catEntity?.name ?: ""
-            selectedCategoryId = catEntity?.id
-            nameText = p.name
-            selectedZone = p.zoneId?.let { id -> zones.find { it.id == id } }
-            rowText = p.row?.toString() ?: ""
-            positionText = p.position?.toString() ?: ""
-            commentText = p.comment ?: ""
-            latitudeText = p.latitude?.toString() ?: ""
-            longitudeText = p.longitude?.toString() ?: ""
+        if (!initialized) {
+            plant?.let { p ->
+                val catEntity = p.categoryId?.let { id -> categories.find { it.id == id } }
+                categorySearchText = catEntity?.name ?: ""
+                selectedCategoryId = catEntity?.id
+                nameText = p.name
+                selectedZone = p.zoneId?.let { id -> zones.find { it.id == id } }
+                rowText = p.row?.toString() ?: ""
+                positionText = p.position?.toString() ?: ""
+                commentText = p.comment ?: ""
+                latitudeText = p.latitude?.toString() ?: ""
+                longitudeText = p.longitude?.toString() ?: ""
+                initialized = true
+            }
         }
+    }
+
+    val hasUnsavedChanges = plant?.let { p ->
+        nameText != p.name ||
+        selectedCategoryId != p.categoryId ||
+        selectedZone?.id != p.zoneId ||
+        rowText != p.row?.toString() ?: "" ||
+        positionText != p.position?.toString() ?: "" ||
+        commentText != p.comment ?: "" ||
+        latitudeText != p.latitude?.toString() ?: "" ||
+        longitudeText != p.longitude?.toString() ?: "" ||
+        selectedPhotoUri != null || cameraPhotoFile != null
+    } ?: false
+
+    BackHandler(enabled = hasUnsavedChanges) {
+        showDiscardDialog = true
     }
 
     if (isLoading) {
@@ -197,13 +221,20 @@ fun EditPlantScreen(
             selectedPhotoUri != null -> selectedPhotoUri
             else -> PhotoPathResolver.toAsyncImageModel(context, p.photoPath)
         }
+        var showEditImageViewer by remember { mutableStateOf(false) }
+
+        if (showEditImageViewer) {
+            ImageViewerDialog(imageModel = mainPhotoModel, onDismiss = { showEditImageViewer = false })
+        }
 
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text("Редагувати рослину") },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        IconButton(onClick = {
+                            if (hasUnsavedChanges) showDiscardDialog = true else onNavigateBack()
+                        }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     },
@@ -262,6 +293,10 @@ fun EditPlantScreen(
                         .height(200.dp)
                         .background(MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium)
                         .align(Alignment.CenterHorizontally)
+                        .then(
+                            if (mainPhotoModel != null) Modifier.clickable { showEditImageViewer = true }
+                            else Modifier
+                        )
                 ) {
                     if (mainPhotoModel != null) {
                         AsyncImage(
@@ -520,6 +555,27 @@ fun EditPlantScreen(
                     dismissButton = {
                         TextButton(onClick = { showDeleteDialog = false }) {
                             Text("Скасувати")
+                        }
+                    }
+                )
+            }
+
+            if (showDiscardDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDiscardDialog = false },
+                    title = { Text("Скасувати зміни?") },
+                    text = { Text("Незбережені зміни будуть втрачені.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showDiscardDialog = false
+                            onNavigateBack()
+                        }) {
+                            Text("Скасувати", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDiscardDialog = false }) {
+                            Text("Продовжити редагування")
                         }
                     }
                 )

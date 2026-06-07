@@ -13,8 +13,8 @@ android {
         applicationId = "com.fazenda.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
         buildConfigField("String", "GITHUB_REPO", "\"aviantcorellc-lang/Fazenda\"")
     }
 
@@ -63,5 +63,6 @@ dependencies {
     implementation(libs.camerax.view)
     implementation(libs.coil.compose)
     implementation(libs.coroutines.android)
+    implementation(libs.osmdroid.android)
     debugImplementation(libs.compose.ui.tooling)
 }

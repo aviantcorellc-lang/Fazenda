@@ -3,6 +3,8 @@ package com.fazenda.app.ui.screen.catalog
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.CategoryEntity
 import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
 
@@ -50,9 +53,9 @@ fun CatalogScreen(
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
     var expanded by remember { mutableStateOf(false) }
-    var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-    var showSearch by remember { mutableStateOf(false) }
+    val selectedCategoryId by catalogViewModel.selectedCategoryId.collectAsState()
+    val searchQuery by catalogViewModel.searchQuery.collectAsState()
+    val showSearch by catalogViewModel.showSearch.collectAsState()
 
     val filteredPlants = if (selectedCategoryId == null) {
         allPlants
@@ -81,11 +84,11 @@ fun CatalogScreen(
                     title = {
                         OutlinedTextField(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = { catalogViewModel.searchQuery.value = it },
                             placeholder = { Text("Назва, категорія, ряд, номер...") },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
+                                    IconButton(onClick = { catalogViewModel.searchQuery.value = "" }) {
                                         Icon(Icons.Default.Clear, contentDescription = "Очистити")
                                     }
                                 }
@@ -96,8 +99,8 @@ fun CatalogScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = {
-                            showSearch = false
-                            searchQuery = ""
+                            catalogViewModel.showSearch.value = false
+                            catalogViewModel.searchQuery.value = ""
                         }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
@@ -113,7 +116,7 @@ fun CatalogScreen(
                         IconButton(onClick = onZonesClick) {
                             Icon(Icons.Default.Hub, contentDescription = "Зони")
                         }
-                        IconButton(onClick = { showSearch = true }) {
+                        IconButton(onClick = { catalogViewModel.showSearch.value = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Пошук")
                         }
                         Box {
@@ -127,7 +130,7 @@ fun CatalogScreen(
                                 DropdownMenuItem(
                                     text = { Text("Всі рослини (А-Я)") },
                                     onClick = {
-                                        selectedCategoryId = null
+                                        catalogViewModel.selectedCategoryId.value = null
                                         expanded = false
                                     }
                                 )
@@ -136,7 +139,7 @@ fun CatalogScreen(
                                     DropdownMenuItem(
                                         text = { Text(category.name) },
                                         onClick = {
-                                            selectedCategoryId = category.id
+                                            catalogViewModel.selectedCategoryId.value = category.id
                                             expanded = false
                                         }
                                     )
@@ -218,6 +221,11 @@ fun CatalogScreen(
 fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onClick: () -> Unit, onEdit: () -> Unit = {}) {
     val context = LocalContext.current
     val photoModel = PhotoPathResolver.toAsyncImageModel(context, plant.photoPath)
+    var showImageViewer by remember { mutableStateOf(false) }
+
+    if (showImageViewer) {
+        ImageViewerDialog(imageModel = photoModel, onDismiss = { showImageViewer = false })
+    }
 
     Card(
         modifier = Modifier
@@ -234,21 +242,21 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                 contentAlignment = Alignment.Center
             ) {
                 if (photoModel != null) {
-                    AsyncImage(
-                        model = photoModel,
-                        contentDescription = plant.name,
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { showImageViewer = true },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Grass, contentDescription = null, tint = Color.Gray)
-                        }
+                        AsyncImage(
+                            model = photoModel,
+                            contentDescription = plant.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
+                } else {
+                    Icon(Icons.Default.Grass, contentDescription = null, tint = Color.Gray)
                 }
             }
             Column(

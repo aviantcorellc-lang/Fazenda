@@ -3,8 +3,17 @@ package com.fazenda.app
 import android.app.Application
 import com.fazenda.app.data.database.AppDatabase
 import com.fazenda.app.data.repository.*
+import org.osmdroid.config.Configuration
 
 class FazendaApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        Configuration.getInstance().apply {
+            userAgentValue = packageName
+            osmdroidTileCache = cacheDir.resolve("osmdroid")
+        }
+    }
 
     val database by lazy { AppDatabase.getInstance(this) }
 
