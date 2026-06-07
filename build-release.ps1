@@ -1,74 +1,90 @@
 param(
-    [string]$VersionName = "",
-    [int]$VersionCode = 0,
-    [switch]$Release = $false
+    [switch]$Publish
 )
 
 $ErrorActionPreference = "Stop"
+$projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$propsFile = Join-Path $projectDir "app\version.properties"
 
-$gradleFile = "app\build.gradle.kts"
-$content = Get-Content $gradleFile -Raw
+# ---------- Auto-increment version ----------
+$code = 1; $name = "1.0.0"
+if (Test-Path $propsFile) {
+    $lines = Get-Content $propsFile
+    $code = [int]((($lines | Where-Object { $_ -match "^VERSION_CODE=(.+)" }) | ForEach-Object { $matches[1] }) -replace "`r|`n")
+    $name = (($lines | Where-Object { $_ -match "^VERSION_NAME=(.+)" }) | ForEach-Object { $matches[1] }) -replace "`r|`n"
+}
+$newCode = $code + 1
+$parts = $name.Split('.')
+if ($parts.Count -eq 3) {
+    $patch = [int]$parts[2] + 1
+    $newName = "$($parts[0]).$($parts[1]).$patch"
+} else {
+    $newName = "1.0.1"
+}
+"VERSION_CODE=$newCode`r`nVERSION_NAME=$newName" | Set-Content $propsFile
+Write-Host "v$newName (code $newCode)" -ForegroundColor Cyan
 
-if ($VersionName -eq "" -or $VersionCode -eq 0) {
-    $currentVersionName = if ($content -match 'versionName\s*=\s*"([^"]+)"') { $Matches[1] } else { "0.0.0" }
-    $currentVersionCode = if ($content -match 'versionCode\s*=\s*(\d+)') { [int]$Matches[1] } else { 0 }
+# ---------- Read password from .env ----------
+$envFile = Join-Path $projectDir ".env"
+if (-not (Test-Path $envFile)) { Write-Host ".env not found" -ForegroundColor Red; exit 1 }
+$envContent = Get-Content $envFile -Raw
+if ($envContent -match "KEYSTORE_PASSWORD=(.+)") {
+    $storePassword = $matches[1].Trim()
+} else {
+    Write-Host "KEYSTORE_PASSWORD not found in .env" -ForegroundColor Red; exit 1
+}
+if ([string]::IsNullOrEmpty($storePassword)) { Write-Host "KEYSTORE_PASSWORD is empty in .env" -ForegroundColor Red; exit 1 }
 
-    $parts = $currentVersionName.Split('.')
-    if ($parts.Count -eq 3) {
-        $major = [int]$parts[0]
-        $minor = [int]$parts[1]
-        $patch = [int]$parts[2] + 1
-        if ($VersionName -eq "") { $VersionName = "$major.$minor.$patch" }
-    } else {
-        if ($VersionName -eq "") { $VersionName = "1.0.0" }
+# ---------- Keystore check ----------
+$keystore = Join-Path $projectDir "app\fazenda-keystore.jks"
+if (-not (Test-Path $keystore)) { Write-Host "Keystore not found" -ForegroundColor Red; exit 1 }
+
+# ---------- Build (gradle handles signing automatically) ----------
+$env:FAZENDA_STORE_PASSWORD = $storePassword
+Set-Location $projectDir
+.\gradlew.bat assembleRelease -x lintVitalAnalyzeRelease 2>&1
+Remove-Item Env:\FAZENDA_STORE_PASSWORD -ErrorAction SilentlyContinue
+if ($LASTEXITCODE -ne 0) { Write-Host "Build failed" -ForegroundColor Red; exit 1 }
+
+# ---------- Copy signed APK ----------
+$buildDir = Join-Path $projectDir "app\build\outputs\apk\release"
+$signedApk = Join-Path $buildDir "app-release.apk"
+$output = Join-Path $buildDir "Fazenda-v$newName.apk"
+if (Test-Path $signedApk) {
+    Copy-Item $signedApk $output -Force
+} else {
+    Write-Host "Signed APK not found" -ForegroundColor Red; exit 1
+}
+
+# ---------- Verify ----------
+Write-Host "Verifying..." -ForegroundColor Cyan
+$apksigner = "C:\Users\lexus\AppData\Local\Android\Sdk\build-tools\35.0.0\apksigner.bat"
+& $apksigner verify --print-certs "$output" 2>&1
+if ($LASTEXITCODE -ne 0) { Write-Host "Verification FAILED" -ForegroundColor Red; exit 1 }
+
+Write-Host "`nOK: $output $(('{0:N0}' -f ((Get-Item $output).Length / 1KB))) KB" -ForegroundColor Green
+
+# ---------- Publish to GitHub ----------
+if ($Publish) {
+    if (-not (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+        Write-Host "GitHub CLI (gh) not found. Install from https://cli.github.com/" -ForegroundColor Red; exit 1
     }
-    if ($VersionCode -eq 0) { $VersionCode = $currentVersionCode + 1 }
+    $tag = "v$newName"
+    $releaseTitle = "Fazenda v$newName"
+    $changeLog = "Changes for v$newName`n`n- Auto-generated release"
+
+    gh auth status 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Host "Not logged in to GitHub. Run 'gh auth login'" -ForegroundColor Red; exit 1 }
+
+    Write-Host "`nCreating GitHub Release..." -ForegroundColor Cyan
+    git tag -a $tag -m $releaseTitle 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        git push origin $tag 2>&1
+    } else {
+        Write-Host "Tag $tag already exists" -ForegroundColor Yellow
+    }
+
+    gh release create $tag "$output" --title $releaseTitle --notes $changeLog 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Host "Release failed" -ForegroundColor Red; exit 1 }
+    Write-Host "Published: https://github.com/aviantcorellc-lang/Fazenda/releases/tag/$tag" -ForegroundColor Green
 }
-
-Write-Host "=== Fazenda App Build ===" -ForegroundColor Cyan
-Write-Host "VersionName: $VersionName" -ForegroundColor Yellow
-Write-Host "VersionCode: $VersionCode" -ForegroundColor Yellow
-Write-Host "Release: $Release" -ForegroundColor Yellow
-
-$content = $content -replace 'versionName\s*=\s*"[^"]*"', "versionName = `"$VersionName`""
-$content = $content -replace 'versionCode\s*=\s*\d+', "versionCode = $VersionCode"
-Set-Content $gradleFile $content -NoNewline
-
-Write-Host "`nUpdated build.gradle.kts" -ForegroundColor Green
-
-$buildType = if ($Release) { "Release" } else { "Debug" }
-Write-Host "`nBuilding $buildType APK..." -ForegroundColor Cyan
-
-if ($Release) {
-    $result = & .\gradlew.bat :app:assembleRelease --no-daemon 2>&1
-} else {
-    $result = & .\gradlew.bat :app:assembleDebug --no-daemon 2>&1
-}
-
-$output = $result -join "`n"
-Write-Host $output
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "`nBUILD FAILED" -ForegroundColor Red
-    exit 1
-}
-
-$buildDir = "app\build\outputs\apk\$($buildType.ToLower())"
-$outputDir = "dist"
-if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
-
-$apkFiles = Get-ChildItem -Path $buildDir -Filter "*.apk"
-$sourceApk = $apkFiles | Where-Object { $_.Name -match "$($buildType.ToLower())" } | Select-Object -First 1
-if (-not $sourceApk) { $sourceApk = $apkFiles | Select-Object -First 1 }
-
-if ($sourceApk) {
-    $destName = "Fazenda-v$VersionName-$buildType.apk"
-    Copy-Item $sourceApk.FullName "$outputDir\$destName"
-    Write-Host "`nAPK: $outputDir\$destName" -ForegroundColor Green
-    Write-Host "Size: $([math]::Round((Get-Item "$outputDir\$destName").Length / 1MB, 2)) MB" -ForegroundColor Green
-} else {
-    Write-Host "`nAPK not found in $buildDir" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "`n=== Build Complete ===" -ForegroundColor Cyan
