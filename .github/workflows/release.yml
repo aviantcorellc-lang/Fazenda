@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,11 +33,9 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > app/fazenda-keystore.jks
 
       - name: Extract version from tag
-        shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
       - name: Update version.properties
-        shell: bash
         run: |
           OLD_CODE=$(grep -oP 'VERSION_CODE=\K\d+' app/version.properties || echo "0")
           echo "VERSION_CODE=$((OLD_CODE + 1))" > app/version.properties
@@ -43,17 +44,40 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build and sign APK
-        env:
-          FAZENDA_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      - name: Build unsigned APK
         run: ./gradlew assembleRelease -x lintVitalAnalyzeRelease
 
-      - name: Find and rename APK
+      - name: Sign APK with apksigner
+        env:
+          KEY_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
-          if [ -z "$APK" ]; then echo "::error::No APK found"; exit 1; fi
-          echo "Found: $APK"
-          cp "$APK" "app/build/outputs/apk/release/Fazenda-v$VERSION.apk"
+          SIGNED="app/build/outputs/apk/release/Fazenda-v$VERSION.apk"
+          cp "$APK" "$SIGNED"
+          ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/*/apksigner
+          APKSIGNER=$(ls $BUILD_TOOLS 2>/dev/null | head -1)
+          if [ -z "$APKSIGNER" ]; then
+            # Fallback: find by build-tools dir
+            APKSIGNER=$(find "$ANDROID_SDK_ROOT" -name apksigner -type f 2>/dev/null | head -1)
+          fi
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found"
+            exit 1
+          fi
+          echo "Using: $APKSIGNER"
+          echo "$KEY_PASS" | "$APKSIGNER" sign \
+            --ks app/fazenda-keystore.jks \
+            --ks-key-alias fazenda-key \
+            --ks-pass stdin \
+            "$SIGNED"
+          rm -f app/fazenda-keystore.jks
+
+      - name: Verify APK
+        run: |
+          ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT" -name apksigner -type f 2>/dev/null | head -1)
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/Fazenda-v$VERSION.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
