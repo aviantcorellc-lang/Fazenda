@@ -1,7 +1,7 @@
 package com.fazenda.app.data.database
 
 import android.content.Context
-import android.content.res.Resources
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -53,6 +53,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 
     companion object {
+        private const val TAG = "AppDatabase"
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -69,7 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase {
             return Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fazenda_db")
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(false)
                 .addCallback(SeedDatabaseCallback(context))
                 .build()
         }
@@ -115,7 +117,7 @@ abstract class AppDatabase : RoomDatabase() {
                     db.endTransaction()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to seed database", e)
             }
         }
 
@@ -311,7 +313,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 }
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            Log.e(TAG, "Failed to seed plant", e)
                         }
                     }
                 }
@@ -338,7 +340,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 )
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            Log.e(TAG, "Failed to seed plant", e)
                         }
                     }
                 }
@@ -358,7 +360,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 )
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            Log.e(TAG, "Failed to seed plant", e)
                         }
                     }
                 }
@@ -391,7 +393,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 )
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
+                            Log.e(TAG, "Failed to seed plant", e)
                         }
                     }
                 }

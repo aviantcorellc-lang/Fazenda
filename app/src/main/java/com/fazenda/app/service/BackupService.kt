@@ -161,7 +161,7 @@ class BackupService(private val context: Context) {
                 }
             } != null
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("BackupService", "Failed to save backup to URI", e)
             false
         }
     }
@@ -253,7 +253,7 @@ class BackupService(private val context: Context) {
 
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("BackupService", "Failed to restore backup", e)
             false
         }
     }

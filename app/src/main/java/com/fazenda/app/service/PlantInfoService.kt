@@ -1,5 +1,6 @@
 package com.fazenda.app.service
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -34,7 +35,7 @@ class PlantInfoService {
                     } else null
                 } else null
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("PlantInfoService", "Failed to fetch from Wikipedia", e)
                 null
             }
         }
@@ -64,7 +65,7 @@ class PlantInfoService {
                     titles
                 } else emptyList()
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("PlantInfoService", "Failed to search Wikipedia", e)
                 emptyList()
             }
         }

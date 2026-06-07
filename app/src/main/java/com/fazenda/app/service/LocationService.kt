@@ -6,9 +6,10 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.os.Bundle
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -16,7 +17,18 @@ class LocationService(private val context: Context) {
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
-    suspend fun getCurrentLocation(): Location? = suspendCancellableCoroutine { continuation ->
+    suspend fun getCurrentLocation(timeoutMs: Long = 10_000): Location? {
+        return try {
+            withTimeout(timeoutMs) {
+                getCurrentLocationInternal()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private suspend fun getCurrentLocationInternal(): Location? = suspendCancellableCoroutine { continuation ->
         if (!hasLocationPermission()) {
             continuation.resume(null)
             return@suspendCancellableCoroutine
@@ -59,9 +71,6 @@ class LocationService(private val context: Context) {
                 }
                 locationManager.removeUpdates(this)
             }
-
-            @Deprecated("Deprecated in Java")
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
         }
 
         continuation.invokeOnCancellation {

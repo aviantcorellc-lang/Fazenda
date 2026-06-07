@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -35,7 +36,7 @@ class WeatherService(private val context: Context) {
                     null
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("WeatherService", "Failed to get forecast", e)
                 null
             }
         }
@@ -49,7 +50,7 @@ class WeatherService(private val context: Context) {
                     ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                 lastKnown
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("WeatherService", "Failed to get current location", e)
                 null
             }
         }
