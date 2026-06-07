@@ -55,23 +55,18 @@ jobs:
           SIGNED="app/build/outputs/apk/release/Fazenda-v$VERSION.apk"
           cp "$APK" "$SIGNED"
           ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
-          BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/*/apksigner
-          APKSIGNER=$(ls $BUILD_TOOLS 2>/dev/null | head -1)
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT" -name apksigner -type f 2>/dev/null | head -1)
           if [ -z "$APKSIGNER" ]; then
-            # Fallback: find by build-tools dir
-            APKSIGNER=$(find "$ANDROID_SDK_ROOT" -name apksigner -type f 2>/dev/null | head -1)
-          fi
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::apksigner not found"
-            exit 1
+            echo "::error::apksigner not found"; exit 1
           fi
           echo "Using: $APKSIGNER"
-          echo "$KEY_PASS" | "$APKSIGNER" sign \
+          printf '%s' "$KEY_PASS" > .keystore-pass
+          "$APKSIGNER" sign \
             --ks app/fazenda-keystore.jks \
             --ks-key-alias fazenda-key \
-            --ks-pass stdin \
+            --ks-pass file:.keystore-pass \
             "$SIGNED"
-          rm -f app/fazenda-keystore.jks
+          rm -f .keystore-pass app/fazenda-keystore.jks
 
       - name: Verify APK
         run: |
