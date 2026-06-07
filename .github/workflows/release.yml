@@ -48,9 +48,12 @@ jobs:
           FAZENDA_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease -x lintVitalAnalyzeRelease
 
-      - name: Rename APK
+      - name: Find and rename APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/Fazenda-v$VERSION.apk"
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          if [ -z "$APK" ]; then echo "::error::No APK found"; exit 1; fi
+          echo "Found: $APK"
+          cp "$APK" "app/build/outputs/apk/release/Fazenda-v$VERSION.apk"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
