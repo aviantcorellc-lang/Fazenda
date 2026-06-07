@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +23,11 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/fazenda-keystore.jks
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "::error::KEYSTORE_BASE64 secret is not set"; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > app/fazenda-keystore.jks
 
       - name: Extract version from tag
         shell: bash
@@ -33,6 +39,9 @@ jobs:
           OLD_CODE=$(grep -oP 'VERSION_CODE=\K\d+' app/version.properties || echo "0")
           echo "VERSION_CODE=$((OLD_CODE + 1))" > app/version.properties
           echo "VERSION_NAME=$VERSION" >> app/version.properties
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Build and sign APK
         env:
