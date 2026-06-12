@@ -189,7 +189,7 @@ fun AddPlantScreen(
                 .padding(16.dp)
         ) {
             if (showAddImageViewer && selectedPhotoUri != null) {
-                ImageViewerDialog(imageModel = selectedPhotoUri, onDismiss = { showAddImageViewer = false })
+                ImageViewerDialog(images = listOf(selectedPhotoUri), onDismiss = { showAddImageViewer = false })
             }
 
             Row(

@@ -1,9 +1,6 @@
 package com.fazenda.app.ui.screen.dashboard
 
-import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +15,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.RestorePage
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fazenda.app.data.entity.ScheduleEntity
-import com.fazenda.app.service.BackupService
 import com.fazenda.app.service.UpdateInfo
 import com.fazenda.app.service.UpdateService
 import com.fazenda.app.ui.viewmodel.DashboardViewModel
@@ -48,6 +41,7 @@ import kotlinx.coroutines.withContext
 fun DashboardScreen(
     onNavigateToCreateLog: () -> Unit,
     onNavigateToMap: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     dashboardViewModel: DashboardViewModel = viewModel()
 ) {
     val schedules by dashboardViewModel.schedules.collectAsState()
@@ -55,8 +49,6 @@ fun DashboardScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var showExportMenu by remember { mutableStateOf(false) }
-    var backupFileToSave by remember { mutableStateOf<java.io.File?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var isDownloading by remember { mutableStateOf(false) }
@@ -70,57 +62,6 @@ fun DashboardScreen(
         }
     }
 
-    val saveLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri ->
-        val file = backupFileToSave
-        backupFileToSave = null
-        if (uri != null && file != null) {
-            scope.launch {
-                try {
-                    val backupService = BackupService(context)
-                    val success = withContext(Dispatchers.IO) {
-                        backupService.saveBackupToUri(file, uri)
-                    }
-                    file.delete()
-                    if (success) {
-                        Toast.makeText(context, "Бекап збережено", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Помилка збереження", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Помилка: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    val restoreLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                try {
-                    val backupService = BackupService(context)
-                    val success = withContext(Dispatchers.IO) {
-                        backupService.restoreBackup(uri)
-                    }
-                    if (success) {
-                        Toast.makeText(context, "Імпорт успішно виконано. Додаток буде перезапущено.", Toast.LENGTH_LONG).show()
-                        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        context.startActivity(intent)
-                        Runtime.getRuntime().exit(0)
-                    } else {
-                        Toast.makeText(context, "Помилка імпорту: невірний формат файлу", Toast.LENGTH_LONG).show()
-                    }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Помилка: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -129,53 +70,8 @@ fun DashboardScreen(
                     IconButton(onClick = onNavigateToMap) {
                         Icon(Icons.Default.Map, contentDescription = "Мапа")
                     }
-                    Box {
-                        IconButton(onClick = { showExportMenu = true }) {
-                            Icon(Icons.Default.Backup, contentDescription = "Експорт")
-                        }
-                        DropdownMenu(
-                            expanded = showExportMenu,
-                            onDismissRequest = { showExportMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Поділитися") },
-                                onClick = {
-                                    showExportMenu = false
-                                    scope.launch {
-                                        try {
-                                            val backupService = BackupService(context)
-                                            val backupFile = withContext(Dispatchers.IO) { backupService.createBackup() }
-                                            backupService.shareBackup(backupFile)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "Помилка: ${e.message}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                },
-                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Зберегти на пристрій") },
-                                onClick = {
-                                    showExportMenu = false
-                                    scope.launch {
-                                        try {
-                                            val backupService = BackupService(context)
-                                            val backupFile = withContext(Dispatchers.IO) { backupService.createBackup() }
-                                            backupFileToSave = backupFile
-                                            saveLauncher.launch("Fazenda_Backup.zip")
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "Помилка: ${e.message}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                },
-                                leadingIcon = { Icon(Icons.Default.Save, contentDescription = null) }
-                            )
-                        }
-                    }
-                    IconButton(onClick = {
-                        restoreLauncher.launch(arrayOf("application/zip", "*/*"))
-                    }) {
-                        Icon(Icons.Default.RestorePage, contentDescription = "Імпорт")
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Налаштування")
                     }
                 }
             )

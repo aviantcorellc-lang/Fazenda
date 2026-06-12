@@ -292,7 +292,7 @@ fun CreateLogScreen(
                             }
                         }
                         if (showLogImageViewer) {
-                            ImageViewerDialog(imageModel = imagePath, onDismiss = { showLogImageViewer = false })
+                            ImageViewerDialog(images = listOf(imagePath), onDismiss = { showLogImageViewer = false })
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

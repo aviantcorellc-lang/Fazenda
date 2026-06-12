@@ -23,6 +23,7 @@ import com.fazenda.app.ui.screen.catalog.CategoriesScreen
 import com.fazenda.app.ui.screen.catalog.CatalogScreen
 import com.fazenda.app.ui.screen.catalog.EditPlantScreen
 import com.fazenda.app.ui.screen.catalog.PlantDetailsScreen
+import com.fazenda.app.ui.screen.catalog.SettingsScreen
 import com.fazenda.app.ui.screen.catalog.ZonesScreen
 import com.fazenda.app.ui.screen.dashboard.DashboardScreen
 import com.fazenda.app.ui.screen.journal.CreateLogScreen
@@ -48,6 +49,7 @@ sealed class DetailScreen(val route: String) {
     data object Zones : DetailScreen("zones")
     data object Categories : DetailScreen("categories")
     data object Map : DetailScreen("map")
+    data object Settings : DetailScreen("settings")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,6 +100,9 @@ fun AppNavigation() {
                     },
                     onNavigateToMap = {
                         navController.navigate(DetailScreen.Map.route)
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(DetailScreen.Settings.route)
                     }
                 )
             }
@@ -113,11 +118,8 @@ fun AppNavigation() {
                     onAddPlant = {
                         navController.navigate(DetailScreen.AddPlant.route)
                     },
-                    onZonesClick = {
-                        navController.navigate(DetailScreen.Zones.route)
-                    },
-                    onCategoriesClick = {
-                        navController.navigate(DetailScreen.Categories.route)
+                    onNavigateToSettings = {
+                        navController.navigate(DetailScreen.Settings.route)
                     }
                 )
             }
@@ -186,6 +188,14 @@ fun AppNavigation() {
                         navController.navigate(DetailScreen.PlantDetails.createRoute(plantId))
                     },
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(DetailScreen.Settings.route) {
+                SettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onEditCategories = { navController.navigate(DetailScreen.Categories.route) },
+                    onEditZones = { navController.navigate(DetailScreen.Zones.route) }
                 )
             }
         }

@@ -66,9 +66,8 @@ fun PlantDetailsScreen(
     val zones by zoneViewModel.zones.collectAsState()
     val categories by categoryViewModel.categories.collectAsState()
     val context = LocalContext.current
-    var showMainImageViewer by remember { mutableStateOf(false) }
-    var showGalleryImageViewer by remember { mutableStateOf(false) }
-    var selectedGalleryModel by remember { mutableStateOf<Any?>(null) }
+    var showImageViewer by remember { mutableStateOf(false) }
+    var imageViewerIndex by remember { mutableStateOf(0) }
     var menuPhotoId by remember { mutableStateOf<Long?>(null) }
 
     val zoneMap = remember(zones) { zones.associateBy { it.id } }
@@ -134,11 +133,21 @@ fun PlantDetailsScreen(
                 else -> emptyList()
             }
 
-            if (showMainImageViewer) {
-                ImageViewerDialog(imageModel = primaryPhotoModel, onDismiss = { showMainImageViewer = false })
+            val allPhotoModels = remember(primaryPhotoModel, galleryPhotos, context) {
+                buildList {
+                    if (primaryPhotoModel != null) add(primaryPhotoModel)
+                    galleryPhotos.forEach { photo ->
+                        PhotoPathResolver.toAsyncImageModel(context, photo.photoPath)?.let { add(it) }
+                    }
+                }
             }
-            if (showGalleryImageViewer) {
-                ImageViewerDialog(imageModel = selectedGalleryModel, onDismiss = { showGalleryImageViewer = false })
+
+            if (showImageViewer) {
+                ImageViewerDialog(
+                    images = allPhotoModels,
+                    initialIndex = imageViewerIndex,
+                    onDismiss = { showImageViewer = false }
+                )
             }
 
             LazyColumn(
@@ -147,7 +156,7 @@ fun PlantDetailsScreen(
                 item {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(250.dp)
-                            .clickable(enabled = primaryPhotoModel != null) { showMainImageViewer = true },
+                            .clickable(enabled = primaryPhotoModel != null) { imageViewerIndex = 0; showImageViewer = true },
                         contentAlignment = Alignment.Center
                     ) {
                         if (primaryPhotoModel != null) {
@@ -187,18 +196,22 @@ fun PlantDetailsScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(galleryPhotos) { photo ->
-                                val photoModel = PhotoPathResolver.toAsyncImageModel(context, photo.photoPath)
                                 Box(
                                     modifier = Modifier
                                         .width(150.dp)
                                         .height(150.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .combinedClickable(
-                                            onClick = { selectedGalleryModel = photoModel; showGalleryImageViewer = true },
+                                            onClick = {
+                                                val idx = galleryPhotos.indexOf(photo) + if (primaryPhotoModel != null) 1 else 0
+                                                imageViewerIndex = idx
+                                                showImageViewer = true
+                                            },
                                             onLongClick = { menuPhotoId = photo.id }
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
+                                    val photoModel = PhotoPathResolver.toAsyncImageModel(context, photo.photoPath)
                                     if (photoModel != null) {
                                         AsyncImage(
                                             model = photoModel,

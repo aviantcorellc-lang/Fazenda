@@ -101,7 +101,7 @@ fun LogCard(
     val logPhotoModel = log.photoPath?.let { PhotoPathResolver.toAsyncImageModel(context, it) }
 
     if (showImageViewer) {
-        ImageViewerDialog(imageModel = logPhotoModel, onDismiss = { showImageViewer = false })
+        ImageViewerDialog(images = listOf(logPhotoModel), onDismiss = { showImageViewer = false })
     }
 
     Card(shape = RoundedCornerShape(12.dp)) {

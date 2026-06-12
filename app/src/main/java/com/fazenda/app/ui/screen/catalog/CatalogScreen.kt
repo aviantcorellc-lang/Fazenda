@@ -13,9 +13,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Grass
-import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,8 +39,7 @@ fun CatalogScreen(
     onPlantClick: (Long) -> Unit,
     onPlantEdit: (Long) -> Unit = {},
     onAddPlant: () -> Unit = {},
-    onZonesClick: () -> Unit = {},
-    onCategoriesClick: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     catalogViewModel: CatalogViewModel = viewModel()
 ) {
     val categories by catalogViewModel.categories.collectAsState()
@@ -110,12 +108,6 @@ fun CatalogScreen(
                 TopAppBar(
                     title = { Text("Каталог рослин") },
                     actions = {
-                        IconButton(onClick = onCategoriesClick) {
-                            Icon(Icons.Default.Category, contentDescription = "Категорії")
-                        }
-                        IconButton(onClick = onZonesClick) {
-                            Icon(Icons.Default.Hub, contentDescription = "Зони")
-                        }
                         IconButton(onClick = { catalogViewModel.showSearch.value = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Пошук")
                         }
@@ -145,6 +137,9 @@ fun CatalogScreen(
                                     )
                                 }
                             }
+                        }
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Налаштування")
                         }
                     }
                 )
@@ -224,7 +219,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
     var showImageViewer by remember { mutableStateOf(false) }
 
     if (showImageViewer) {
-        ImageViewerDialog(imageModel = photoModel, onDismiss = { showImageViewer = false })
+        ImageViewerDialog(images = listOf(photoModel), onDismiss = { showImageViewer = false })
     }
 
     Card(

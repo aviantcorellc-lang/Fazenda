@@ -25,20 +25,25 @@ fun SearchableDropdown(
     modifier: Modifier = Modifier
 ) {
     var showDropdown by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
-    val filteredOptions = if (value.isBlank()) {
+    val filteredOptions = if (searchQuery.isBlank()) {
         options
     } else {
-        options.filter { it.contains(value, ignoreCase = true) }
+        options.filter { it.contains(searchQuery, ignoreCase = true) }
     }
 
     ExposedDropdownMenuBox(
         expanded = showDropdown,
-        onExpandedChange = { showDropdown = it }
+        onExpandedChange = {
+            showDropdown = it
+            if (it) searchQuery = ""
+        }
     ) {
         OutlinedTextField(
-            value = value,
+            value = if (searchQuery.isNotBlank()) searchQuery else value,
             onValueChange = {
+                searchQuery = it
                 onValueChange(it)
                 showDropdown = true
             },
@@ -51,21 +56,27 @@ fun SearchableDropdown(
         if (showDropdown) {
             ExposedDropdownMenu(
                 expanded = showDropdown,
-                onDismissRequest = { showDropdown = false }
+                onDismissRequest = {
+                    showDropdown = false
+                    searchQuery = ""
+                }
             ) {
                 if (filteredOptions.isEmpty()) {
                     DropdownMenuItem(
                         text = { Text("Немає варіантів") },
-                        onClick = { showDropdown = false }
+                        onClick = {
+                            showDropdown = false
+                            searchQuery = ""
+                        }
                     )
                 } else {
-                    val limitedOptions = filteredOptions.take(50)
-                    limitedOptions.forEach { option ->
+                    filteredOptions.forEach { option ->
                         DropdownMenuItem(
                             text = { Text(option) },
                             onClick = {
                                 onValueChange(option)
                                 showDropdown = false
+                                searchQuery = ""
                             }
                         )
                     }

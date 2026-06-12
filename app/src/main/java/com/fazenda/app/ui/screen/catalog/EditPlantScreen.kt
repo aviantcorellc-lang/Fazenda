@@ -224,7 +224,7 @@ fun EditPlantScreen(
         var showEditImageViewer by remember { mutableStateOf(false) }
 
         if (showEditImageViewer) {
-            ImageViewerDialog(imageModel = mainPhotoModel, onDismiss = { showEditImageViewer = false })
+            ImageViewerDialog(images = listOf(mainPhotoModel), onDismiss = { showEditImageViewer = false })
         }
 
         Scaffold(
