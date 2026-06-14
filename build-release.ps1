@@ -55,6 +55,12 @@ $signedApk = Join-Path $buildDir "app-release.apk"
 $output = Join-Path $buildDir "Fazenda-v$newName.apk"
 if (Test-Path $signedApk) {
     Copy-Item $signedApk $output -Force
+    # Copy to dist directory
+    $distDir = Join-Path $projectDir "dist"
+    if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
+    $distOutput = Join-Path $distDir "Fazenda-v$newName-Release.apk"
+    Copy-Item $signedApk $distOutput -Force
+    Write-Host "Copied release APK to dist: $distOutput" -ForegroundColor Green
 } else {
     Write-Host "Signed APK not found" -ForegroundColor Red; exit 1
 }
