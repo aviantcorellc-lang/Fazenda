@@ -2,6 +2,7 @@ package com.fazenda.app.ui.screen.catalog
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
@@ -151,50 +152,55 @@ fun CatalogScreen(
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (searchFilteredPlants.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.Grass,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = Color.Gray.copy(alpha = 0.3f)
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+        ) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                item {
+                    FilterChip(
+                        selected = selectedCategoryId == null,
+                        onClick = { catalogViewModel.selectedCategoryId.value = null },
+                        label = { Text("Всі") }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Немає рослин у каталозі", style = MaterialTheme.typography.titleMedium)
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(12.dp)
-                ) {
-                    if (selectedCategoryId == null) {
-                        items(searchFilteredPlants) { plant ->
-                            val catName = plant.categoryId?.let { categoryMap[it]?.name }
-                            PlantCard(
-                                plant = plant,
-                                categoryName = catName,
-                                zoneName = plant.zoneId?.let { zoneMap[it]?.name },
-                                onClick = { onPlantClick(plant.id) },
-                                onEdit = { onPlantEdit(plant.id) }
-                            )
-                        }
-                    } else {
-                        item {
-                            val catName = selectedCategoryId?.let { categoryMap[it]?.name } ?: ""
-                            Text(
-                                catName,
-                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                        }
+                items(categories) { category ->
+                    FilterChip(
+                        selected = selectedCategoryId == category.id,
+                        onClick = { catalogViewModel.selectedCategoryId.value = category.id },
+                        label = { Text(category.name) }
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (searchFilteredPlants.isEmpty()) {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Grass,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = Color.Gray.copy(alpha = 0.3f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Немає рослин у каталозі", style = MaterialTheme.typography.titleMedium)
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(12.dp)
+                    ) {
                         items(searchFilteredPlants) { plant ->
                             val catName = plant.categoryId?.let { categoryMap[it]?.name }
                             PlantCard(
@@ -225,39 +231,52 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
-        onClick = onClick
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .width(100.dp)
-                    .height(100.dp),
+                    .padding(8.dp)
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (photoModel != null) {
-                    Box(
+                    AsyncImage(
+                        model = photoModel,
+                        contentDescription = plant.name,
                         modifier = Modifier
                             .fillMaxSize()
                             .clickable { showImageViewer = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = photoModel,
-                            contentDescription = plant.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
-                    Icon(Icons.Default.Grass, contentDescription = null, tint = Color.Gray)
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Grass,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
                 }
             }
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(12.dp)
+                    .padding(end = 12.dp, top = 8.dp, bottom = 8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -269,7 +288,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                             plant.name,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         if (categoryName != null) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -289,7 +308,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                         Icon(Icons.Default.Edit, contentDescription = "Редагувати", modifier = Modifier.size(18.dp))
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 if (zoneName != null || plant.row != null || plant.position != null) {
                     val parts = mutableListOf<String>()
                     zoneName?.let { parts.add(it) }
@@ -298,6 +317,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                     Text(
                         parts.joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         maxLines = 2
                     )
                 }

@@ -1,15 +1,7 @@
 package com.fazenda.app.ui.screen.dashboard
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +40,9 @@ fun DashboardScreen(
 ) {
     val schedules by dashboardViewModel.schedules.collectAsState()
     val isLoading by dashboardViewModel.isLoading.collectAsState()
+    val weatherAdvice by dashboardViewModel.weatherAdvice.collectAsState()
+    val weatherCode by dashboardViewModel.currentWeatherCode.collectAsState()
+    val weatherTemp by dashboardViewModel.currentWeatherTemp.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -88,26 +85,42 @@ fun DashboardScreen(
         Box(modifier = Modifier.padding(paddingValues)) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (schedules.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        tint = Color.Gray.copy(alpha = 0.3f)
-                    )
-                    Text("Немає запланованих обробок", style = MaterialTheme.typography.titleMedium)
-                }
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(schedules) { schedule ->
-                        ScheduleCard(schedule)
+                    item {
+                        WeatherCard(
+                            weatherAdvice = weatherAdvice,
+                            weatherCode = weatherCode,
+                            temp = weatherTemp,
+                            onRefresh = { dashboardViewModel.loadWeather() }
+                        )
+                    }
+
+                    if (schedules.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.Gray.copy(alpha = 0.3f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Немає запланованих обробок", style = MaterialTheme.typography.titleMedium)
+                            }
+                        }
+                    } else {
+                        items(schedules) { schedule ->
+                            ScheduleCard(schedule)
+                        }
                     }
                 }
             }
@@ -170,6 +183,7 @@ fun DashboardScreen(
 @Composable
 fun ScheduleCard(schedule: ScheduleEntity) {
     Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -209,3 +223,80 @@ fun ScheduleCard(schedule: ScheduleEntity) {
         }
     }
 }
+
+@Composable
+fun WeatherCard(
+    weatherAdvice: String,
+    weatherCode: Int?,
+    temp: Double?,
+    onRefresh: () -> Unit
+) {
+    val context = LocalContext.current
+    val weatherDesc = remember(weatherCode) {
+        if (weatherCode != null) {
+            val service = com.fazenda.app.service.WeatherService(context)
+            service.getWeatherDescription(weatherCode)
+        } else {
+            "Невідома погода"
+        }
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (temp != null) "${temp.toInt()}°C" else "--°C",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = weatherDesc,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Оновити погоду",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    imageVector = Icons.Default.WbSunny,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = weatherAdvice,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    }
+}
+
