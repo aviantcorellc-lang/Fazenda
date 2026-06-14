@@ -193,9 +193,9 @@ fun AppNavigation() {
 
             composable(DetailScreen.Map.route) {
                 val catalogViewModel: CatalogViewModel = viewModel()
-                val plants by catalogViewModel.allPlants.collectAsState()
+                val plantsWithPhotos by catalogViewModel.allPlantsWithPhotos.collectAsState()
                 MapScreen(
-                    plants = plants,
+                    plants = plantsWithPhotos.map { it.plant },
                     onPlantClick = { plantId ->
                         navController.navigate(DetailScreen.PlantDetails.createRoute(plantId))
                     },

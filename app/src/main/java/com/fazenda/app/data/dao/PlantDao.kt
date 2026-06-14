@@ -2,6 +2,7 @@ package com.fazenda.app.data.dao
 
 import androidx.room.*
 import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.data.entity.PlantWithPhotos
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -29,6 +30,10 @@ interface PlantDao {
 
     @Query("SELECT * FROM plants")
     suspend fun getAllPlantsList(): List<PlantEntity>
+
+    @Transaction
+    @Query("SELECT * FROM plants ORDER BY name")
+    fun getAllPlantsWithPhotos(): Flow<List<PlantWithPhotos>>
 
     @Query("DELETE FROM plants")
     suspend fun deleteAllPlants()

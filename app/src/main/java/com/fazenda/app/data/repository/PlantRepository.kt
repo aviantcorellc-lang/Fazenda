@@ -4,6 +4,7 @@ import com.fazenda.app.data.dao.PlantDao
 import com.fazenda.app.data.entity.LogEntity
 import com.fazenda.app.data.entity.LogActionTypes
 import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.data.entity.PlantWithPhotos
 import kotlinx.coroutines.flow.Flow
 
 class PlantRepository(
@@ -11,6 +12,7 @@ class PlantRepository(
     private val logRepository: LogRepository
 ) {
     val allPlants: Flow<List<PlantEntity>> = plantDao.getAllPlants()
+    val allPlantsWithPhotos: Flow<List<PlantWithPhotos>> = plantDao.getAllPlantsWithPhotos()
 
     suspend fun getPlantById(id: Long): PlantEntity? = plantDao.getPlantById(id)
 

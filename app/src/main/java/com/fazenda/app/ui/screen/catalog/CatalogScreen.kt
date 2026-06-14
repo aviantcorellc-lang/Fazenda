@@ -1,11 +1,16 @@
 package com.fazenda.app.ui.screen.catalog
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,6 +19,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -21,7 +27,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -29,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.CategoryEntity
-import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.data.entity.PlantWithPhotos
 import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
@@ -44,7 +49,7 @@ fun CatalogScreen(
     catalogViewModel: CatalogViewModel = viewModel()
 ) {
     val categories by catalogViewModel.categories.collectAsState()
-    val allPlants by catalogViewModel.allPlants.collectAsState()
+    val allPlantsWithPhotos by catalogViewModel.allPlantsWithPhotos.collectAsState()
     val zones by catalogViewModel.zones.collectAsState()
     val isLoading by catalogViewModel.isLoading.collectAsState()
 
@@ -57,15 +62,16 @@ fun CatalogScreen(
     val showSearch by catalogViewModel.showSearch.collectAsState()
 
     val filteredPlants = if (selectedCategoryId == null) {
-        allPlants
+        allPlantsWithPhotos
     } else {
-        allPlants.filter { it.categoryId == selectedCategoryId }
+        allPlantsWithPhotos.filter { it.plant.categoryId == selectedCategoryId }
     }
 
     val searchFilteredPlants = if (searchQuery.isBlank()) {
         filteredPlants
     } else {
-        filteredPlants.filter { plant ->
+        filteredPlants.filter { pwp ->
+            val plant = pwp.plant
             val zoneName = plant.zoneId?.let { zoneMap[it]?.name } ?: ""
             val catName = plant.categoryId?.let { categoryMap[it]?.name } ?: ""
             plant.name.contains(searchQuery, ignoreCase = true) ||
@@ -201,14 +207,14 @@ fun CatalogScreen(
                     LazyColumn(
                         contentPadding = PaddingValues(12.dp)
                     ) {
-                        items(searchFilteredPlants) { plant ->
-                            val catName = plant.categoryId?.let { categoryMap[it]?.name }
+                        items(searchFilteredPlants, key = { it.plant.id }) { plantWithPhotos ->
+                            val catName = plantWithPhotos.plant.categoryId?.let { categoryMap[it]?.name }
                             PlantCard(
-                                plant = plant,
+                                plantWithPhotos = plantWithPhotos,
                                 categoryName = catName,
-                                zoneName = plant.zoneId?.let { zoneMap[it]?.name },
-                                onClick = { onPlantClick(plant.id) },
-                                onEdit = { onPlantEdit(plant.id) }
+                                zoneName = plantWithPhotos.plant.zoneId?.let { zoneMap[it]?.name },
+                                onClick = { onPlantClick(plantWithPhotos.plant.id) },
+                                onEdit = { onPlantEdit(plantWithPhotos.plant.id) }
                             )
                         }
                     }
@@ -218,14 +224,35 @@ fun CatalogScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onClick: () -> Unit, onEdit: () -> Unit = {}) {
+fun PlantCard(
+    plantWithPhotos: PlantWithPhotos,
+    categoryName: String?,
+    zoneName: String?,
+    onClick: () -> Unit,
+    onEdit: () -> Unit = {}
+) {
+    val plant = plantWithPhotos.plant
     val context = LocalContext.current
-    val photoModel = PhotoPathResolver.toAsyncImageModel(context, plant.photoPath)
-    var showImageViewer by remember { mutableStateOf(false) }
+    val allPhotoPaths = remember(plantWithPhotos) { plantWithPhotos.allPhotoPathsSorted() }
+    val totalPhotos = allPhotoPaths.size
 
-    if (showImageViewer) {
-        ImageViewerDialog(images = listOf(photoModel), onDismiss = { showImageViewer = false })
+    var showImageViewer by remember { mutableStateOf(false) }
+    var imageViewerStartIndex by remember { mutableStateOf(0) }
+
+    val pagerState = rememberPagerState { totalPhotos.coerceAtLeast(1) }
+
+    val allPhotoModels = remember(allPhotoPaths, context) {
+        allPhotoPaths.map { path -> PhotoPathResolver.toAsyncImageModel(context, path) }
+    }
+
+    if (showImageViewer && allPhotoModels.isNotEmpty()) {
+        ImageViewerDialog(
+            images = allPhotoModels,
+            initialIndex = imageViewerStartIndex,
+            onDismiss = { showImageViewer = false }
+        )
     }
 
     Card(
@@ -241,6 +268,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Фото-секція: якщо є кілька фото — горизонтальний pager
             Box(
                 modifier = Modifier
                     .padding(8.dp)
@@ -248,16 +276,8 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                     .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (photoModel != null) {
-                    AsyncImage(
-                        model = photoModel,
-                        contentDescription = plant.name,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable { showImageViewer = true },
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
+                if (totalPhotos == 0) {
+                    // Немає жодного фото
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.surfaceVariant
@@ -271,8 +291,101 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                             )
                         }
                     }
+                } else if (totalPhotos == 1) {
+                    // Одне фото — просте зображення
+                    val model = allPhotoModels.firstOrNull()
+                    if (model != null) {
+                        AsyncImage(
+                            model = model,
+                            contentDescription = plant.name,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable {
+                                    imageViewerStartIndex = 0
+                                    showImageViewer = true
+                                },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                } else {
+                    // Кілька фото — горизонтальний pager з крапками
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        val model = allPhotoModels.getOrNull(page)
+                        if (model != null) {
+                            AsyncImage(
+                                model = model,
+                                contentDescription = "${plant.name} фото ${page + 1}",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable {
+                                        imageViewerStartIndex = page
+                                        showImageViewer = true
+                                    },
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    // Індикатор сторінок (крапки) — тільки якщо є > 1 фото
+                    if (totalPhotos > 1) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            repeat(totalPhotos.coerceAtMost(5)) { i ->
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 1.5.dp)
+                                        .size(if (pagerState.currentPage == i) 5.dp else 3.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (pagerState.currentPage == i)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Бейдж кількості фото (якщо > 1)
+                if (totalPhotos > 1) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(2.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Photo,
+                                contentDescription = null,
+                                modifier = Modifier.size(8.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                "$totalPhotos",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = MaterialTheme.typography.labelSmall.fontSize
+                            )
+                        }
+                    }
                 }
             }
+
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -325,3 +438,5 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
         }
     }
 }
+
+

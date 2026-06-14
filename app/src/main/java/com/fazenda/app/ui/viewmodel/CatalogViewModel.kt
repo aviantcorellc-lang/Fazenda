@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fazenda.app.FazendaApplication
 import com.fazenda.app.data.entity.CategoryEntity
-import com.fazenda.app.data.entity.PlantEntity
+import com.fazenda.app.data.entity.PlantWithPhotos
 import com.fazenda.app.data.entity.ZoneEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,8 +18,8 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     private val zoneRepository = (application as FazendaApplication).zoneRepository
     private val categoryRepository = (application as FazendaApplication).categoryRepository
 
-    private val _allPlants = MutableStateFlow<List<PlantEntity>>(emptyList())
-    val allPlants: StateFlow<List<PlantEntity>> = _allPlants.asStateFlow()
+    private val _allPlantsWithPhotos = MutableStateFlow<List<PlantWithPhotos>>(emptyList())
+    val allPlantsWithPhotos: StateFlow<List<PlantWithPhotos>> = _allPlantsWithPhotos.asStateFlow()
 
     private val _categories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     val categories: StateFlow<List<CategoryEntity>> = _categories.asStateFlow()
@@ -46,8 +46,8 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         viewModelScope.launch {
-            plantRepository.allPlants.collect { plants ->
-                _allPlants.value = plants.sortedBy { it.name }
+            plantRepository.allPlantsWithPhotos.collect { plants ->
+                _allPlantsWithPhotos.value = plants
                 _isLoading.value = false
             }
         }
