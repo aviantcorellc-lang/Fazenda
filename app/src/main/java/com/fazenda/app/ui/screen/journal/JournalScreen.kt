@@ -104,7 +104,10 @@ fun LogCard(
         ImageViewerDialog(images = listOf(logPhotoModel), onDismiss = { showImageViewer = false })
     }
 
-    Card(shape = RoundedCornerShape(12.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

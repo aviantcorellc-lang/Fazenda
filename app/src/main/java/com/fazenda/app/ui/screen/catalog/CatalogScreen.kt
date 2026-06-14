@@ -231,39 +231,52 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
-        onClick = onClick
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .width(100.dp)
-                    .height(100.dp),
+                    .padding(8.dp)
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (photoModel != null) {
-                    Box(
+                    AsyncImage(
+                        model = photoModel,
+                        contentDescription = plant.name,
                         modifier = Modifier
                             .fillMaxSize()
                             .clickable { showImageViewer = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = photoModel,
-                            contentDescription = plant.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
-                    Icon(Icons.Default.Grass, contentDescription = null, tint = Color.Gray)
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Grass,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
                 }
             }
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(12.dp)
+                    .padding(end = 12.dp, top = 8.dp, bottom = 8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -275,7 +288,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                             plant.name,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         if (categoryName != null) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -295,7 +308,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                         Icon(Icons.Default.Edit, contentDescription = "Редагувати", modifier = Modifier.size(18.dp))
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 if (zoneName != null || plant.row != null || plant.position != null) {
                     val parts = mutableListOf<String>()
                     zoneName?.let { parts.add(it) }
@@ -304,6 +317,7 @@ fun PlantCard(plant: PlantEntity, categoryName: String?, zoneName: String?, onCl
                     Text(
                         parts.joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         maxLines = 2
                     )
                 }
