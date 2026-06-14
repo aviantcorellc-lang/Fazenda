@@ -25,9 +25,13 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Grass
+import com.fazenda.app.ui.util.PhotoPathResolver
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -76,123 +80,24 @@ fun MapScreen(
         if (isGranted) addMyLocationOverlay(mapView, context)
     }
 
-    fun createInfoView(plant: PlantEntity, bitmap: Bitmap?): android.view.View {
-        val density = context.resources.displayMetrics.density
-        val iconSize = (48 * density).toInt()
-
-        val root = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding((12 * density).toInt(), (8 * density).toInt(), (12 * density).toInt(), (8 * density).toInt())
-            setBackgroundColor(android.graphics.Color.WHITE)
-        }
-
-        if (bitmap != null) {
-            val photoView = ImageView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    bottomMargin = (4 * density).toInt()
-                }
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setImageBitmap(bitmap)
-            }
-            root.addView(photoView)
-        }
-
-        val nameText = TextView(context).apply {
-            text = plant.name
-            textSize = 14f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        root.addView(nameText)
-
-        val subText = buildString {
-            plant.zoneId?.let { id -> zoneMap[id]?.name?.let { append("$it · ") } }
-            plant.categoryId?.let { id -> categoryMap[id]?.name?.let { append(it) } }
-        }
-        if (subText.isNotBlank()) {
-            val descText = TextView(context).apply {
-                text = subText
-                textSize = 12f
-                setTextColor(android.graphics.Color.GRAY)
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-            root.addView(descText)
-        }
-
-        return root
-    }
+    var selectedPlantForSheet by remember { mutableStateOf<PlantEntity?>(null) }
 
     fun addMarkers(mv: MapView, bitmaps: Map<Long, Bitmap?>) {
-        // Shared info window – reuse the same window for all markers
-        val density = context.resources.displayMetrics.density
-        val infoRoot = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding((12 * density).toInt(), (8 * density).toInt(), (12 * density).toInt(), (8 * density).toInt())
-            setBackgroundColor(android.graphics.Color.WHITE)
-            minimumWidth = (120 * density).toInt()
-        }
-        val infoWindow = object : org.osmdroid.views.overlay.infowindow.InfoWindow(infoRoot, mv) {
-            override fun onOpen(item: Any?) {
-                val m = item as? Marker ?: return
-                val pIdx = plantsWithCoords.indexOfFirst { it.latitude == m.position.latitude && it.longitude == m.position.longitude }
-                val plant = if (pIdx >= 0) plantsWithCoords[pIdx] else return
-                val bmp = bitmaps[plant.id]
-
-                infoRoot.removeAllViews()
-                val bmpSize = (48 * density).toInt()
-                if (bmp != null) {
-                    infoRoot.addView(ImageView(context).apply {
-                        layoutParams = LinearLayout.LayoutParams(bmpSize, bmpSize).apply {
-                            gravity = Gravity.CENTER_HORIZONTAL
-                            bottomMargin = (4 * density).toInt()
-                        }
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        setImageBitmap(bmp)
-                    })
-                }
-                infoRoot.addView(TextView(context).apply {
-                    text = plant.name
-                    textSize = 14f
-                    setTypeface(null, android.graphics.Typeface.BOLD)
-                    gravity = Gravity.CENTER_HORIZONTAL
-                })
-                val subText = buildString {
-                    plant.zoneId?.let { id -> zoneMap[id]?.name?.let { append("$it · ") } }
-                    plant.categoryId?.let { id -> categoryMap[id]?.name?.let { append(it) } }
-                }
-                if (subText.isNotBlank()) {
-                    infoRoot.addView(TextView(context).apply {
-                        text = subText
-                        textSize = 12f
-                        setTextColor(android.graphics.Color.GRAY)
-                        gravity = Gravity.CENTER_HORIZONTAL
-                    })
-                }
-                // Tap on info window → navigate to plant details
-                infoRoot.setOnClickListener { onPlantClick(plant.id) }
-            }
-            override fun onClose() {}
-        }
-
         plantsWithCoords.forEach { plant ->
             val marker = Marker(mv)
             marker.position = GeoPoint(plant.latitude!!, plant.longitude!!)
             marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             marker.title = plant.name
-            marker.subDescription = buildString {
-                plant.zoneId?.let { id -> zoneMap[id]?.name?.let { append("$it · ") } }
-                plant.categoryId?.let { id -> categoryMap[id]?.name?.let { append(it) } }
-            }
 
             val photoBitmap = bitmaps[plant.id]
             if (photoBitmap != null) {
                 marker.icon = BitmapDrawable(context.resources, photoBitmap)
             }
 
-            marker.infoWindow = infoWindow
-            marker.setOnMarkerClickListener { m, _ ->
-                m.showInfoWindow(); true
+            marker.infoWindow = null
+            marker.setOnMarkerClickListener { _, _ ->
+                selectedPlantForSheet = plant
+                true
             }
             mv.overlays.add(marker)
         }
@@ -299,6 +204,130 @@ fun MapScreen(
                         }
                     }
                 )
+            }
+        }
+    }
+
+    if (selectedPlantForSheet != null) {
+        val sheetState = rememberModalBottomSheetState()
+        val plant = selectedPlantForSheet!!
+        val zoneName = plant.zoneId?.let { zoneMap[it]?.name }
+        val categoryName = plant.categoryId?.let { categoryMap[it]?.name }
+
+        ModalBottomSheet(
+            onDismissRequest = { selectedPlantForSheet = null },
+            sheetState = sheetState,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .navigationBarsPadding()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val photoModel = PhotoPathResolver.toAsyncImageModel(context, plant.photoPath)
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        if (photoModel != null) {
+                            coil.compose.AsyncImage(
+                                model = photoModel,
+                                contentDescription = plant.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Grass,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = plant.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (categoryName != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Text(
+                                        text = categoryName,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                            }
+                            if (zoneName != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                ) {
+                                    Text(
+                                        text = zoneName,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (plant.row != null || plant.position != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val posParts = mutableListOf<String>()
+                    plant.row?.let { posParts.add("Ряд ${it.toInt()}") }
+                    plant.position?.let { posParts.add("Номер ${it.toInt()}") }
+                    Text(
+                        text = "Розташування: ${posParts.joinToString(" · ")}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (!plant.comment.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = plant.comment,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = {
+                        selectedPlantForSheet = null
+                        onPlantClick(plant.id)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Переглянути деталі")
+                }
             }
         }
     }
