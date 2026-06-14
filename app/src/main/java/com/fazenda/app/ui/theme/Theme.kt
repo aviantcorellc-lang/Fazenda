@@ -28,6 +28,27 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = Color(0xFF757575)
 )
 
+private val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFF81C784),
+    onPrimary = Color(0xFF0C3311),
+    primaryContainer = Color(0xFF1B5E20),
+    onPrimaryContainer = Color(0xFFE8F5E9),
+    secondary = Color(0xFFB0BEC5),
+    onSecondary = Color(0xFF263238),
+    secondaryContainer = Color(0xFF37474F),
+    onSecondaryContainer = Color(0xFFECEFF1),
+    tertiary = Color(0xFF90CAF9),
+    onTertiary = Color(0xFF0D47A1),
+    tertiaryContainer = Color(0xFF1565C0),
+    onTertiaryContainer = Color(0xFFE3F2FD),
+    background = Color(0xFF0E1410),
+    onBackground = Color(0xFFE8F5E9),
+    surface = Color(0xFF151D18),
+    onSurface = Color(0xFFE8F5E9),
+    surfaceVariant = Color(0xFF1D2821),
+    onSurfaceVariant = Color(0xFFB2C2B9)
+)
+
 @Composable
 fun FazendaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -39,7 +60,7 @@ fun FazendaTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> LightColorScheme // Same for now, add dark later
+        darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
 
