@@ -1,5 +1,6 @@
 package com.fazenda.app.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,6 +30,8 @@ import com.fazenda.app.ui.screen.dashboard.DashboardScreen
 import com.fazenda.app.ui.screen.journal.CreateLogScreen
 import com.fazenda.app.ui.screen.journal.JournalScreen
 import com.fazenda.app.ui.screen.map.MapScreen
+import com.fazenda.app.ui.screen.dashboard.SchedulesScreen
+import com.fazenda.app.ui.screen.knowledge.KnowledgeBaseScreen
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
 
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
@@ -50,6 +53,8 @@ sealed class DetailScreen(val route: String) {
     data object Categories : DetailScreen("categories")
     data object Map : DetailScreen("map")
     data object Settings : DetailScreen("settings")
+    data object Schedules : DetailScreen("schedules")
+    data object KnowledgeBase : DetailScreen("knowledge_base")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,6 +68,7 @@ fun AppNavigation() {
     val showBottomBar = currentRoute in bottomNavItems.map { it.route }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
@@ -103,6 +109,12 @@ fun AppNavigation() {
                     },
                     onNavigateToSettings = {
                         navController.navigate(DetailScreen.Settings.route)
+                    },
+                    onNavigateToSchedules = {
+                        navController.navigate(DetailScreen.Schedules.route)
+                    },
+                    onNavigateToKnowledgeBase = {
+                        navController.navigate(DetailScreen.KnowledgeBase.route)
                     }
                 )
             }
@@ -196,6 +208,18 @@ fun AppNavigation() {
                     onNavigateBack = { navController.popBackStack() },
                     onEditCategories = { navController.navigate(DetailScreen.Categories.route) },
                     onEditZones = { navController.navigate(DetailScreen.Zones.route) }
+                )
+            }
+
+            composable(DetailScreen.Schedules.route) {
+                SchedulesScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(DetailScreen.KnowledgeBase.route) {
+                KnowledgeBaseScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fazenda.app.data.entity.LogActionTypes
 import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
@@ -57,6 +59,11 @@ fun CreateLogScreen(
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val isLoading by createLogViewModel.isLoading.collectAsState()
 
+    val targetType by createLogViewModel.selectedTargetType.collectAsState()
+    val selectedZone by createLogViewModel.selectedZone.collectAsState()
+    val selectedCategory by createLogViewModel.selectedCategory.collectAsState()
+    val selectedChemicals by createLogViewModel.selectedChemicals.collectAsState()
+
     val context = LocalContext.current
     var comment by remember { mutableStateOf("") }
     var aiDiagnosis by remember { mutableStateOf("") }
@@ -67,7 +74,8 @@ fun CreateLogScreen(
     var showDiscardDialog by remember { mutableStateOf(false) }
 
     val hasUnsavedChanges = comment.isNotBlank() || aiDiagnosis.isNotBlank() ||
-        selectedPlant != null || selectedActionType != null ||
+        selectedPlant != null || selectedZone != null || selectedCategory != null ||
+        selectedActionType != null || selectedChemicals.isNotEmpty() ||
         createLogViewModel.photoPath.value != null
 
     BackHandler(enabled = hasUnsavedChanges && !saved) {
@@ -191,34 +199,118 @@ fun CreateLogScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Plant
-                Text("Рослина", style = MaterialTheme.typography.labelMedium)
+                // Target Selection
+                val zones by createLogViewModel.zones.collectAsState()
+                val targetCategories by createLogViewModel.categories.collectAsState()
+                var showZoneDropdown by remember { mutableStateOf(false) }
+                var showCategoryDropdown by remember { mutableStateOf(false) }
+
+                Text("Об'єкт обробки", style = MaterialTheme.typography.labelMedium)
                 Spacer(modifier = Modifier.height(8.dp))
-                ExposedDropdownMenuBox(
-                    expanded = showPlantDropdown,
-                    onExpandedChange = { showPlantDropdown = it }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = selectedPlant?.let { p -> "${p.name} (${p.categoryId?.let { categoryMap[it]?.name } ?: "?"})" } ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        placeholder = { Text("Виберіть рослину") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPlantDropdown) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = showPlantDropdown,
-                        onDismissRequest = { showPlantDropdown = false }
-                    ) {
-                        plants.forEach { plant ->
-                            DropdownMenuItem(
-                                text = { Text("${plant.name} (${plant.categoryId?.let { categoryMap[it]?.name } ?: "?"})") },
-                                onClick = {
-                                    createLogViewModel.setSelectedPlant(plant)
-                                    showPlantDropdown = false
-                                }
+                    com.fazenda.app.ui.viewmodel.TargetType.values().forEach { type ->
+                        FilterChip(
+                            selected = targetType == type,
+                            onClick = { createLogViewModel.setSelectedTargetType(type) },
+                            label = { Text(type.displayName) }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                when (targetType) {
+                    com.fazenda.app.ui.viewmodel.TargetType.PLANT -> {
+                        ExposedDropdownMenuBox(
+                            expanded = showPlantDropdown,
+                            onExpandedChange = { showPlantDropdown = it }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedPlant?.let { p -> "${p.name} (${p.categoryId?.let { categoryMap[it]?.name } ?: "?"})" } ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = { Text("Виберіть рослину") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPlantDropdown) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
                             )
+                            ExposedDropdownMenu(
+                                expanded = showPlantDropdown,
+                                onDismissRequest = { showPlantDropdown = false }
+                            ) {
+                                plants.forEach { plant ->
+                                    DropdownMenuItem(
+                                        text = { Text("${plant.name} (${plant.categoryId?.let { categoryMap[it]?.name } ?: "?"})") },
+                                        onClick = {
+                                            createLogViewModel.setSelectedPlant(plant)
+                                            showPlantDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    com.fazenda.app.ui.viewmodel.TargetType.ZONE -> {
+                        ExposedDropdownMenuBox(
+                            expanded = showZoneDropdown,
+                            onExpandedChange = { showZoneDropdown = it }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedZone?.name ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = { Text("Виберіть зону") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showZoneDropdown) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = showZoneDropdown,
+                                onDismissRequest = { showZoneDropdown = false }
+                            ) {
+                                zones.forEach { zone ->
+                                    DropdownMenuItem(
+                                        text = { Text(zone.name) },
+                                        onClick = {
+                                            createLogViewModel.setSelectedZone(zone)
+                                            showZoneDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    com.fazenda.app.ui.viewmodel.TargetType.CATEGORY -> {
+                        ExposedDropdownMenuBox(
+                            expanded = showCategoryDropdown,
+                            onExpandedChange = { showCategoryDropdown = it }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedCategory?.name ?: "",
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = { Text("Виберіть категорію рослин") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryDropdown) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = showCategoryDropdown,
+                                onDismissRequest = { showCategoryDropdown = false }
+                            ) {
+                                targetCategories.forEach { category ->
+                                    DropdownMenuItem(
+                                        text = { Text(category.name) },
+                                        onClick = {
+                                            createLogViewModel.setSelectedCategory(category)
+                                            showCategoryDropdown = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -253,6 +345,92 @@ fun CreateLogScreen(
                                     showActionTypeDropdown = false
                                 }
                             )
+                        }
+                    }
+                }
+
+                val chemicals by createLogViewModel.chemicals.collectAsState()
+                var showChemicalDropdown by remember { mutableStateOf(false) }
+
+                if (selectedActionType == LogActionTypes.SPRAYING || selectedActionType == LogActionTypes.FEEDING) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("Препарати (бакова суміш)", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (selectedChemicals.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            selectedChemicals.forEach { chemical ->
+                                InputChip(
+                                    selected = true,
+                                    onClick = { createLogViewModel.toggleChemicalSelection(chemical) },
+                                    label = { Text(chemical.name) },
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Видалити",
+                                            modifier = Modifier.clickable { createLogViewModel.toggleChemicalSelection(chemical) }
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else {
+                        Text(
+                            "Не обрано препаратів (запис без препаратів)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    ExposedDropdownMenuBox(
+                        expanded = showChemicalDropdown,
+                        onExpandedChange = { showChemicalDropdown = it }
+                    ) {
+                        OutlinedTextField(
+                            value = if (selectedChemicals.isEmpty()) "Додати препарат..." else "${selectedChemicals.size} обрано. Додати ще...",
+                            onValueChange = {},
+                            readOnly = true,
+                            placeholder = { Text("Виберіть препарат") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showChemicalDropdown) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = showChemicalDropdown,
+                            onDismissRequest = { showChemicalDropdown = false }
+                        ) {
+                            chemicals.forEach { chemical ->
+                                val isSelected = selectedChemicals.any { it.id == chemical.id }
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("${chemical.name} (${chemical.purpose})")
+                                            if (isSelected) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Обрано",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        createLogViewModel.toggleChemicalSelection(chemical)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

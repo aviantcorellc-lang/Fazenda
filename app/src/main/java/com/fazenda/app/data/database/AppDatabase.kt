@@ -29,6 +29,7 @@ import java.io.InputStreamReader
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.fazenda.app.data.entity.LogChemicalCrossRef
 
 @Database(
     entities = [
@@ -38,9 +39,10 @@ import java.time.format.DateTimeFormatter
         ScheduleEntity::class,
         LogEntity::class,
         ZoneEntity::class,
-        CategoryEntity::class
+        CategoryEntity::class,
+        LogChemicalCrossRef::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -69,8 +71,140 @@ abstract class AppDatabase : RoomDatabase() {
             INSTANCE = null
         }
 
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // plants
+                db.execSQL("ALTER TABLE plants RENAME TO plants_old")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `plants` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `categoryId` INTEGER, 
+                        `name` TEXT NOT NULL, 
+                        `zoneId` INTEGER, 
+                        `row` REAL, 
+                        `position` REAL, 
+                        `comment` TEXT, 
+                        `photoPath` TEXT, 
+                        `latitude` REAL, 
+                        `longitude` REAL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
+                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO plants (id, categoryId, name, zoneId, row, position, comment, photoPath, latitude, longitude)
+                    SELECT id, categoryId, name, zoneId, row, position, comment, photoPath, latitude, longitude FROM plants_old
+                """.trimIndent())
+                db.execSQL("DROP TABLE plants_old")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plants_categoryId` ON `plants` (`categoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_plants_zoneId` ON `plants` (`zoneId`)")
+
+                // logs
+                db.execSQL("ALTER TABLE logs RENAME TO logs_old")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `logs` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `date` INTEGER NOT NULL, 
+                        `plantId` INTEGER, 
+                        `chemicalId` INTEGER, 
+                        `actionType` TEXT NOT NULL, 
+                        `photoPath` TEXT, 
+                        `comment` TEXT, 
+                        `aiDiagnosis` TEXT,
+                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
+                        FOREIGN KEY(`chemicalId`) REFERENCES `chemicals`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO logs (id, date, plantId, chemicalId, actionType, photoPath, comment, aiDiagnosis)
+                    SELECT id, date, plantId, NULL, actionType, photoPath, comment, aiDiagnosis FROM logs_old
+                """.trimIndent())
+                db.execSQL("DROP TABLE logs_old")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_plantId` ON `logs` (`plantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_chemicalId` ON `logs` (`chemicalId`)")
+
+                // schedules
+                db.execSQL("ALTER TABLE schedules RENAME TO schedules_old")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `schedules` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `phaseTime` TEXT NOT NULL, 
+                        `categoryId` INTEGER, 
+                        `recipe` TEXT NOT NULL, 
+                        `startDate` INTEGER NOT NULL, 
+                        `endDate` INTEGER NOT NULL, 
+                        `isCompleted` INTEGER NOT NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO schedules (id, phaseTime, categoryId, recipe, startDate, endDate, isCompleted)
+                    SELECT s.id, s.phaseTime, c.id, s.recipe, s.startDate, s.endDate, s.isCompleted 
+                    FROM schedules_old s
+                    LEFT JOIN categories c ON c.name = s.targetCategory
+                """.trimIndent())
+                db.execSQL("DROP TABLE schedules_old")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_schedules_categoryId` ON `schedules` (`categoryId`)")
+            }
+        }
+
+        val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create log_chemicals cross-reference table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `log_chemicals` (
+                        `logId` INTEGER NOT NULL, 
+                        `chemicalId` INTEGER NOT NULL, 
+                        PRIMARY KEY(`logId`, `chemicalId`), 
+                        FOREIGN KEY(`logId`) REFERENCES `logs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE, 
+                        FOREIGN KEY(`chemicalId`) REFERENCES `chemicals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_log_chemicals_chemicalId` ON `log_chemicals` (`chemicalId`)")
+
+                // 2. Add chemicalGroup to chemicals table
+                db.execSQL("ALTER TABLE `chemicals` ADD COLUMN `chemicalGroup` TEXT NOT NULL DEFAULT 'Інше'")
+
+                // 3. Migrate logs table: drop chemicalId and add zoneId, categoryId
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `logs_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `date` INTEGER NOT NULL, 
+                        `plantId` INTEGER, 
+                        `zoneId` INTEGER, 
+                        `categoryId` INTEGER, 
+                        `actionType` TEXT NOT NULL, 
+                        `photoPath` TEXT, 
+                        `comment` TEXT, 
+                        `aiDiagnosis` TEXT,
+                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
+                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                    )
+                """.trimIndent())
+                
+                db.execSQL("""
+                    INSERT INTO logs_new (id, date, plantId, zoneId, categoryId, actionType, photoPath, comment, aiDiagnosis)
+                    SELECT id, date, plantId, NULL, NULL, actionType, photoPath, comment, aiDiagnosis FROM logs
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO log_chemicals (logId, chemicalId)
+                    SELECT id, chemicalId FROM logs WHERE chemicalId IS NOT NULL
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE logs")
+                db.execSQL("ALTER TABLE logs_new RENAME TO logs")
+                
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_plantId` ON `logs` (`plantId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_zoneId` ON `logs` (`zoneId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_logs_categoryId` ON `logs` (`categoryId`)")
+            }
+        }
+
         private fun buildDatabase(context: Context): AppDatabase {
             return Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fazenda_db")
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigration(false)
                 .addCallback(SeedDatabaseCallback(context))
                 .build()
@@ -97,6 +231,28 @@ abstract class AppDatabase : RoomDatabase() {
             super.onOpen(db)
             runBlocking(Dispatchers.IO) {
                 seedDataWithDb(db)
+                syncMissingPlantPhotos(db)
+            }
+        }
+
+        private fun syncMissingPlantPhotos(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL(
+                    """
+                    INSERT INTO plant_photos (plantId, photoPath, `order`)
+                    SELECT id, photoPath, 0 FROM plants
+                    WHERE photoPath IS NOT NULL 
+                      AND photoPath != ''
+                      AND NOT EXISTS (
+                          SELECT 1 FROM plant_photos 
+                          WHERE plant_photos.plantId = plants.id 
+                            AND plant_photos.photoPath = plants.photoPath
+                      )
+                    """.trimIndent()
+                )
+                Log.i(TAG, "Successfully synced missing plant photos to plant_photos table")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to sync missing plant photos", e)
             }
         }
 
@@ -348,19 +504,28 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private suspend fun seedSchedulesFromRawDb(context: Context, db: SupportSQLiteDatabase) {
+            val categoryMap = mutableMapOf<String, Long>()
+            db.query("SELECT id, name FROM categories").use { cursor ->
+                while (cursor.moveToNext()) {
+                    categoryMap[cursor.getString(1)] = cursor.getLong(0)
+                }
+            }
+
             context.resources.openRawResource(R.raw.schedules).use { inputStream ->
                 BufferedReader(InputStreamReader(inputStream)).use { reader ->
                     reader.readLines().filter { it.isNotBlank() }.drop(1).forEach { line ->
                         try {
                             val parts = CsvParser.parseLine(line)
                             if (parts.size >= 4) {
+                                val categoryName = parts[2].trim()
+                                val categoryId = categoryMap[categoryName]
                                 db.execSQL(
-                                    "INSERT INTO schedules (phaseTime, targetCategory, recipe) VALUES (?, ?, ?)",
-                                    arrayOf(parts[1], parts[2], parts[3])
+                                    "INSERT INTO schedules (phaseTime, categoryId, recipe, startDate, endDate, isCompleted) VALUES (?, ?, ?, 0, 0, 0)",
+                                    arrayOf(parts[1], categoryId, parts[3])
                                 )
                             }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to seed plant", e)
+                            Log.e(TAG, "Failed to seed schedule", e)
                         }
                     }
                 }

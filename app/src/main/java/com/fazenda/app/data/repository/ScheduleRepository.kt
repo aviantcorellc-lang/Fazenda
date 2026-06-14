@@ -10,8 +10,8 @@ class ScheduleRepository(private val scheduleDao: ScheduleDao) {
     fun getUpcomingSchedules(now: Long): Flow<List<ScheduleEntity>> =
         scheduleDao.getUpcomingSchedules(now)
 
-    fun getSchedulesByCategory(category: String): Flow<List<ScheduleEntity>> =
-        scheduleDao.getSchedulesByCategory(category)
+    fun getSchedulesByCategoryId(categoryId: Long): Flow<List<ScheduleEntity>> =
+        scheduleDao.getSchedulesByCategoryId(categoryId)
 
     suspend fun getScheduleById(id: Long): ScheduleEntity? = scheduleDao.getScheduleById(id)
 

@@ -42,7 +42,10 @@ if (-not (Test-Path $keystore)) { Write-Host "Keystore not found" -ForegroundCol
 # ---------- Build (gradle handles signing automatically) ----------
 $env:FAZENDA_STORE_PASSWORD = $storePassword
 Set-Location $projectDir
-.\gradlew.bat assembleRelease -x lintVitalAnalyzeRelease 2>&1
+$oldPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+cmd.exe /c "gradlew.bat assembleRelease -x lintVitalAnalyzeRelease -Dorg.gradle.java.home=""C:\Program Files\Android\Android Studio\jbr"""
+$ErrorActionPreference = $oldPreference
 Remove-Item Env:\FAZENDA_STORE_PASSWORD -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed" -ForegroundColor Red; exit 1 }
 
@@ -78,15 +81,17 @@ if ($Publish) {
     & $gh.Path auth status 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Host "Not logged in to GitHub. Run 'gh auth login'" -ForegroundColor Red; exit 1 }
 
-    Write-Host "`nCreating GitHub Release..." -ForegroundColor Cyan
-    git tag -a $tag -m $releaseTitle 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        git push origin $tag 2>&1
-    } else {
-        Write-Host "Tag $tag already exists" -ForegroundColor Yellow
-    }
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
 
-    & $gh.Path release create $tag "$output" --title $releaseTitle --notes $changeLog 2>&1
+    Write-Host "`nCreating GitHub Release..." -ForegroundColor Cyan
+    git tag -d $tag 2>$null
+    git tag -a $tag -m $releaseTitle
+    git push origin $tag --force
+
+    & $gh.Path release create $tag "$output" --title $releaseTitle --notes $changeLog
+    
+    $ErrorActionPreference = $oldPreference
     if ($LASTEXITCODE -ne 0) { Write-Host "Release failed" -ForegroundColor Red; exit 1 }
     Write-Host "Published: https://github.com/aviantcorellc-lang/Fazenda/releases/tag/$tag" -ForegroundColor Green
 }

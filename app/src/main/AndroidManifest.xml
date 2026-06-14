@@ -18,7 +18,8 @@
         android:label="Розумний Сад"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FazendaApp">
 
         <activity
             android:name=".MainActivity"

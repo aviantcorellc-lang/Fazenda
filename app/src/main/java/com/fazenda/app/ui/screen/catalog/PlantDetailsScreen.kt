@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fazenda.app.data.entity.LogEntity
+import com.fazenda.app.data.entity.LogWithChemicals
 import com.fazenda.app.ui.component.ImageViewerDialog
 import com.fazenda.app.ui.util.PhotoPathResolver
 import com.fazenda.app.ui.viewmodel.CategoryViewModel
@@ -62,6 +64,7 @@ fun PlantDetailsScreen(
     val plant by plantDetailsViewModel.plant.collectAsState()
     val plantPhotos by plantDetailsViewModel.plantPhotos.collectAsState()
     val plantLogs by plantDetailsViewModel.plantLogs.collectAsState()
+    val quarantineInfo by plantDetailsViewModel.quarantineInfo.collectAsState()
     val isLoading by plantDetailsViewModel.isLoading.collectAsState()
     val zones by zoneViewModel.zones.collectAsState()
     val categories by categoryViewModel.categories.collectAsState()
@@ -153,6 +156,48 @@ fun PlantDetailsScreen(
             LazyColumn(
                 modifier = Modifier.padding(paddingValues)
             ) {
+                quarantineInfo?.let { info ->
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Увага! Карантин після обробки",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale("uk", "UA")) }
+                                    Text(
+                                        text = "Препарат: ${info.chemicalName}\nДіє до: ${dateFormat.format(Date(info.endDate))} (залишилось ${info.remainingDays} дн.)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(250.dp)
@@ -383,7 +428,7 @@ fun PlantDetailsScreen(
                     }
                 } else {
                     items(plantLogs) { log ->
-                        LogItem(log = log)
+                        LogItem(logWithChems = log, zoneMap = zoneMap, categoryMap = categoryMap)
                     }
                 }
             }
@@ -392,7 +437,12 @@ fun PlantDetailsScreen(
 }
 
 @Composable
-fun LogItem(log: LogEntity) {
+fun LogItem(
+    logWithChems: LogWithChemicals,
+    zoneMap: Map<Long, com.fazenda.app.data.entity.ZoneEntity>,
+    categoryMap: Map<Long, com.fazenda.app.data.entity.CategoryEntity>
+) {
+    val log = logWithChems.log
     val dateFormat = androidx.compose.runtime.remember {
         SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("uk", "UA"))
     }
@@ -406,21 +456,52 @@ fun LogItem(log: LogEntity) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer
-                ) {
-                    Text(
-                        log.actionType,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        fontSize = MaterialTheme.typography.labelSmall.fontSize
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer
+                    ) {
+                        Text(
+                            log.actionType,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize
+                        )
+                    }
+                    
+                    // Group treatment indicators
+                    val groupText = when {
+                        log.zoneId != null -> " (Вся зона: ${zoneMap[log.zoneId]?.name ?: "?"})"
+                        log.categoryId != null -> " (Категорія: ${categoryMap[log.categoryId]?.name ?: "?"})"
+                        else -> null
+                    }
+                    if (groupText != null) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = groupText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
                 Text(dateFormat.format(Date(log.date)), style = MaterialTheme.typography.labelSmall)
             }
+            
+            if (logWithChems.chemicals.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                val chemsText = logWithChems.chemicals.joinToString(", ") { it.name }
+                Text(
+                    text = "Препарати: $chemsText",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             if (!log.comment.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(log.comment, style = MaterialTheme.typography.bodySmall)

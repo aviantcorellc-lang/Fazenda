@@ -13,15 +13,33 @@ import androidx.room.Index
             parentColumns = ["id"],
             childColumns = ["plantId"],
             onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = ZoneEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["zoneId"],
+            onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = CategoryEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["categoryId"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index("plantId")]
+    indices = [
+        Index("plantId"),
+        Index("zoneId"),
+        Index("categoryId")
+    ]
 )
 data class LogEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val date: Long,
     val plantId: Long? = null,
+    val zoneId: Long? = null,
+    val categoryId: Long? = null,
     val actionType: String,  // Примітка, Підживлення, Обприскування, Заміна, Інше
     val photoPath: String? = null,
     val comment: String? = null,

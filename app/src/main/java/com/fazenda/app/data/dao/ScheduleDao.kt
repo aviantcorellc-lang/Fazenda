@@ -18,8 +18,8 @@ interface ScheduleDao {
     @Query("UPDATE schedules SET isCompleted = 0 WHERE id = :id")
     suspend fun markAsPending(id: Long)
 
-    @Query("SELECT * FROM schedules WHERE targetCategory = :category ORDER BY phaseTime")
-    fun getSchedulesByCategory(category: String): Flow<List<ScheduleEntity>>
+    @Query("SELECT * FROM schedules WHERE categoryId = :categoryId ORDER BY phaseTime")
+    fun getSchedulesByCategoryId(categoryId: Long): Flow<List<ScheduleEntity>>
 
     @Query("SELECT * FROM schedules WHERE id = :id")
     suspend fun getScheduleById(id: Long): ScheduleEntity?

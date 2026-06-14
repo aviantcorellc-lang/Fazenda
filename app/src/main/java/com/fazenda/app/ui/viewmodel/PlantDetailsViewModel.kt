@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.fazenda.app.FazendaApplication
 import com.fazenda.app.data.entity.LogEntity
+import com.fazenda.app.data.entity.LogWithChemicals
 import com.fazenda.app.data.entity.PlantEntity
 import com.fazenda.app.data.entity.PlantPhotoEntity
 import com.fazenda.app.service.FileService
@@ -24,7 +25,14 @@ class PlantDetailsViewModel(
     private val plantRepository = (application as FazendaApplication).plantRepository
     private val plantPhotoRepository = (application as FazendaApplication).plantPhotoRepository
     private val logRepository = (application as FazendaApplication).logRepository
+    private val chemicalRepository = (application as FazendaApplication).chemicalRepository
     private val fileService = FileService(application)
+
+    data class QuarantineInfo(
+        val chemicalName: String,
+        val endDate: Long,
+        val remainingDays: Int
+    )
 
     private val _plant = MutableStateFlow<PlantEntity?>(null)
     val plant: StateFlow<PlantEntity?> = _plant.asStateFlow()
@@ -32,26 +40,75 @@ class PlantDetailsViewModel(
     private val _plantPhotos = MutableStateFlow<List<PlantPhotoEntity>>(emptyList())
     val plantPhotos: StateFlow<List<PlantPhotoEntity>> = _plantPhotos.asStateFlow()
 
-    private val _plantLogs = MutableStateFlow<List<LogEntity>>(emptyList())
-    val plantLogs: StateFlow<List<LogEntity>> = _plantLogs.asStateFlow()
+    private val _plantLogs = MutableStateFlow<List<LogWithChemicals>>(emptyList())
+    val plantLogs: StateFlow<List<LogWithChemicals>> = _plantLogs.asStateFlow()
+
+    private val _quarantineInfo = MutableStateFlow<QuarantineInfo?>(null)
+    val quarantineInfo: StateFlow<QuarantineInfo?> = _quarantineInfo.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
         viewModelScope.launch {
-            _plant.value = plantRepository.getPlantById(plantId)
+            val currentPlant = plantRepository.getPlantById(plantId)
+            _plant.value = currentPlant
             _isLoading.value = false
+
+            if (currentPlant != null) {
+                logRepository.getLogsForPlant(
+                    plantId = currentPlant.id,
+                    zoneId = currentPlant.zoneId,
+                    categoryId = currentPlant.categoryId
+                ).collect { logs ->
+                    _plantLogs.value = logs
+                    calculateQuarantine(logs)
+                }
+            }
         }
         viewModelScope.launch {
             plantPhotoRepository.getPhotosByPlantId(plantId).collect { photos ->
                 _plantPhotos.value = photos
             }
         }
+    }
+
+    private fun calculateQuarantine(logs: List<LogWithChemicals>) {
         viewModelScope.launch {
-            logRepository.getLogsByPlantId(plantId).collect { logs ->
-                _plantLogs.value = logs
+            val sprayingLogs = logs.filter { 
+                it.log.actionType == "Обприскування" || it.log.actionType == "Підживлення"
             }
+            if (sprayingLogs.isEmpty()) {
+                _quarantineInfo.value = null
+                return@launch
+            }
+
+            val now = System.currentTimeMillis()
+            var activeQuarantine: QuarantineInfo? = null
+
+            for (logWithChems in sprayingLogs) {
+                for (chemical in logWithChems.chemicals) {
+                    if (chemical.waitingPeriodDays <= 0) continue
+
+                    val waitingPeriodMillis = chemical.waitingPeriodDays * 24 * 60 * 60 * 1000L
+                    val quarantineEndDate = logWithChems.log.date + waitingPeriodMillis
+
+                    if (quarantineEndDate > now) {
+                        val remainingMillis = quarantineEndDate - now
+                        val remainingDays = (remainingMillis / (24 * 60 * 60 * 1000L)).toInt() + 1
+                        
+                        if (activeQuarantine == null || quarantineEndDate > activeQuarantine.endDate) {
+                            activeQuarantine = QuarantineInfo(
+                                chemicalName = chemical.name,
+                                endDate = quarantineEndDate,
+                                remainingDays = remainingDays
+                            )
+                        }
+                    }
+                }
+            }
+
+            _quarantineInfo.value = activeQuarantine
         }
     }
 
@@ -123,8 +180,32 @@ class PlantDetailsViewModel(
 
     fun updatePlant(plant: PlantEntity) {
         viewModelScope.launch {
+            val oldPlant = plantRepository.getPlantById(plant.id)
+            val oldPhotoPath = oldPlant?.photoPath
+            val newPhotoPath = plant.photoPath
+
             plantRepository.updatePlant(plant)
             _plant.value = plant
+
+            if (oldPhotoPath != newPhotoPath) {
+                if (!oldPhotoPath.isNullOrBlank()) {
+                    val oldPhotoEntity = _plantPhotos.value.find { it.photoPath == oldPhotoPath }
+                    if (oldPhotoEntity != null) {
+                        plantPhotoRepository.deletePhoto(oldPhotoEntity)
+                    }
+                }
+                if (!newPhotoPath.isNullOrBlank()) {
+                    if (_plantPhotos.value.none { it.photoPath == newPhotoPath }) {
+                        plantPhotoRepository.insertPhoto(
+                            PlantPhotoEntity(
+                                plantId = plant.id,
+                                photoPath = newPhotoPath,
+                                order = _plantPhotos.value.size
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 

@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,16 +32,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import com.fazenda.app.data.entity.CategoryEntity
+import com.fazenda.app.ui.viewmodel.CategoryViewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onNavigateToCreateLog: () -> Unit,
     onNavigateToMap: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    dashboardViewModel: DashboardViewModel = viewModel()
+    onNavigateToSchedules: () -> Unit = {},
+    onNavigateToKnowledgeBase: () -> Unit = {},
+    dashboardViewModel: DashboardViewModel = viewModel(),
+    categoryViewModel: CategoryViewModel = viewModel()
 ) {
     val schedules by dashboardViewModel.schedules.collectAsState()
     val isLoading by dashboardViewModel.isLoading.collectAsState()
+    val categories by categoryViewModel.categories.collectAsState()
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val weatherAdvice by dashboardViewModel.weatherAdvice.collectAsState()
     val weatherCode by dashboardViewModel.currentWeatherCode.collectAsState()
     val weatherTemp by dashboardViewModel.currentWeatherTemp.collectAsState()
@@ -99,6 +109,40 @@ fun DashboardScreen(
                         )
                     }
 
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = onNavigateToSchedules,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Плани", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = onNavigateToKnowledgeBase,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("База знань", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     if (schedules.isEmpty()) {
                         item {
                             Column(
@@ -119,7 +163,7 @@ fun DashboardScreen(
                         }
                     } else {
                         items(schedules) { schedule ->
-                            ScheduleCard(schedule)
+                            ScheduleCard(schedule, categoryMap)
                         }
                     }
                 }
@@ -181,7 +225,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun ScheduleCard(schedule: ScheduleEntity) {
+fun ScheduleCard(schedule: ScheduleEntity, categoryMap: Map<Long, CategoryEntity>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -208,8 +252,9 @@ fun ScheduleCard(schedule: ScheduleEntity) {
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer
                 ) {
+                    val categoryName = schedule.categoryId?.let { categoryMap[it]?.name } ?: "Всі"
                     Text(
-                        schedule.targetCategory,
+                        categoryName,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         fontSize = 12.sp

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "enabled_providers": ["lmstudio"],
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:1234/v1/models"
+      },
+      "models": {
+        "google/gemma-4-12b": {
+          "name": "google/gemma-4-12b (local)"
+        }
+      }
+    }
+  },
+}
