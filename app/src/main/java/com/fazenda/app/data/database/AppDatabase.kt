@@ -87,8 +87,8 @@ abstract class AppDatabase : RoomDatabase() {
                         `photoPath` TEXT, 
                         `latitude` REAL, 
                         `longitude` REAL,
-                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
-                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
+                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
                     )
                 """.trimIndent())
                 db.execSQL("""
@@ -111,8 +111,8 @@ abstract class AppDatabase : RoomDatabase() {
                         `photoPath` TEXT, 
                         `comment` TEXT, 
                         `aiDiagnosis` TEXT,
-                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
-                        FOREIGN KEY(`chemicalId`) REFERENCES `chemicals`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
+                        FOREIGN KEY(`chemicalId`) REFERENCES `chemicals`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
                     )
                 """.trimIndent())
                 db.execSQL("""
@@ -177,9 +177,9 @@ abstract class AppDatabase : RoomDatabase() {
                         `photoPath` TEXT, 
                         `comment` TEXT, 
                         `aiDiagnosis` TEXT,
-                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
-                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL,
-                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET_NULL
+                        FOREIGN KEY(`plantId`) REFERENCES `plants`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
+                        FOREIGN KEY(`zoneId`) REFERENCES `zones`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
                     )
                 """.trimIndent())
                 
