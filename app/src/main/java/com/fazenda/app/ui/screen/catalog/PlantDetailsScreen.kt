@@ -96,17 +96,20 @@ fun PlantDetailsScreen(
         floatingActionButton = {
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                FloatingActionButton(
+                SmallFloatingActionButton(
                     onClick = { addPhotoLauncher.launch("image/*") },
-                    containerColor = MaterialTheme.colorScheme.secondary
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 ) {
                     Icon(Icons.Default.Image, contentDescription = "Додати фото")
                 }
-                FloatingActionButton(onClick = onEditClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "Редагувати")
-                }
+                ExtendedFloatingActionButton(
+                    onClick = onEditClick,
+                    icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    text = { Text("Редагувати") }
+                )
             }
         }
     ) { paddingValues ->
@@ -221,7 +224,7 @@ fun PlantDetailsScreen(
                                         Icons.Default.Grass,
                                         contentDescription = null,
                                         modifier = Modifier.size(80.dp),
-                                        tint = Color.Gray
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     )
                                 }
                             }
@@ -274,7 +277,7 @@ fun PlantDetailsScreen(
                                                     Icons.Default.Grass,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(48.dp),
-                                                    tint = Color.Gray
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                                 )
                                             }
                                         }
@@ -308,7 +311,7 @@ fun PlantDetailsScreen(
                         Text(
                             "Довге натискання — меню дій з фото",
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(color = Color.Gray)
+                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     }
                 }
@@ -422,7 +425,9 @@ fun PlantDetailsScreen(
                         ) {
                             Text(
                                 "Немає записів для цієї рослини",
-                                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
                     }

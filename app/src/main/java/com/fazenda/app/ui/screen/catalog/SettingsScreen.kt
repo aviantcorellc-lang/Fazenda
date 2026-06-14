@@ -201,7 +201,7 @@ fun SettingsScreen(
             SettingsCard(
                 icon = Icons.Default.Info,
                 title = "Про додаток",
-                subtitle = "Розумний Сад v1.0",
+                subtitle = "Розумний Сад v${com.fazenda.app.BuildConfig.VERSION_NAME}",
                 tint = MaterialTheme.colorScheme.tertiary,
                 onClick = {}
             )

@@ -192,7 +192,7 @@ fun CatalogScreen(
                             Icons.Default.Grass,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
-                            tint = Color.Gray.copy(alpha = 0.3f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Немає рослин у каталозі", style = MaterialTheme.typography.titleMedium)

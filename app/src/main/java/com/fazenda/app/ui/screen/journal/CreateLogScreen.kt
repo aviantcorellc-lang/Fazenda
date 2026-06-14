@@ -26,6 +26,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -446,70 +447,50 @@ fun CreateLogScreen(
                 if (currentPhotoPath != null) {
                     val imagePath = PhotoPathResolver.toAsyncImageModel(context, currentPhotoPath)
                     var showLogImageViewer by remember { mutableStateOf(false) }
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().clickable { showLogImageViewer = true }
-                            ) {
-                                AsyncImage(
-                                    model = imagePath,
-                                    contentDescription = "Фото",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                            IconButton(
-                                onClick = { createLogViewModel.clearPhoto() },
-                                modifier = Modifier.align(Alignment.TopEnd)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Видалити фото",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
+                    Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().clickable { showLogImageViewer = true }
+                        ) {
+                            AsyncImage(
+                                model = imagePath,
+                                contentDescription = "Фото",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
                         }
-                        if (showLogImageViewer) {
-                            ImageViewerDialog(images = listOf(imagePath), onDismiss = { showLogImageViewer = false })
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { openCamera() },
-                                modifier = Modifier.weight(1f).height(48.dp)
-                            ) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Камера")
-                            }
-                            OutlinedButton(
-                                onClick = { imagePickerLauncher.launch("image/*") },
-                                modifier = Modifier.weight(1f).height(48.dp)
-                            ) {
-                                Icon(Icons.Default.Image, contentDescription = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Галерея")
-                            }
+                        IconButton(
+                            onClick = { createLogViewModel.clearPhoto() },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Видалити фото",
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
-                } else {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = { openCamera() },
-                            modifier = Modifier.weight(1f).height(48.dp)
-                        ) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Камера")
-                        }
-                        OutlinedButton(
-                            onClick = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier.weight(1f).height(48.dp)
-                        ) {
-                            Icon(Icons.Default.Image, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Галерея")
-                        }
+                    if (showLogImageViewer) {
+                        ImageViewerDialog(images = listOf(imagePath), onDismiss = { showLogImageViewer = false })
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { openCamera() },
+                        modifier = Modifier.weight(1f).height(48.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Камера")
+                    }
+                    OutlinedButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f).height(48.dp)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Галерея")
                     }
                 }
 
@@ -549,7 +530,7 @@ fun CreateLogScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null)
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Відкрити Gemini")
                         }

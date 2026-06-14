@@ -1,5 +1,8 @@
 package com.fazenda.app.ui.screen.dashboard
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,7 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -34,6 +37,7 @@ fun SchedulesScreen(
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var scheduleToDelete by remember { mutableStateOf<ScheduleEntity?>(null) }
     var phaseTime by remember { mutableStateOf("") }
     var recipe by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf<Long?>(null) }
@@ -46,6 +50,28 @@ fun SchedulesScreen(
     var showEndDatePicker by remember { mutableStateOf(false) }
 
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale("uk", "UA")) }
+
+    // Діалог підтвердження видалення
+    if (scheduleToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { scheduleToDelete = null },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Видалити план?") },
+            text = { Text("'${scheduleToDelete?.phaseTime}' буде видалено безповоротно.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scheduleToDelete?.let { viewModel.deleteSchedule(it) }
+                        scheduleToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Видалити") }
+            },
+            dismissButton = {
+                TextButton(onClick = { scheduleToDelete = null }) { Text("Скасувати") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -74,11 +100,25 @@ fun SchedulesScreen(
                     .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "Немає запланованих обробок",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Немає запланованих обробок",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Натисніть + щоб створити план",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             val pendingSchedules = schedules.filter { !it.isCompleted }
@@ -101,12 +141,12 @@ fun SchedulesScreen(
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
-                    items(pendingSchedules) { schedule ->
-                        ScheduleCard(
+                    items(pendingSchedules, key = { it.id }) { schedule ->
+                        SwipeToDismissScheduleCard(
                             schedule = schedule,
                             categoryName = schedule.categoryId?.let { categoryMap[it]?.name } ?: "Всі рослини",
                             onComplete = { viewModel.completeSchedule(schedule) },
-                            onDelete = { viewModel.deleteSchedule(schedule) }
+                            onDelete = { scheduleToDelete = schedule }
                         )
                     }
                 }
@@ -118,16 +158,16 @@ fun SchedulesScreen(
                             text = "Завершені обробки",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
-                    items(completedSchedules) { schedule ->
-                        ScheduleCard(
+                    items(completedSchedules, key = { it.id }) { schedule ->
+                        SwipeToDismissScheduleCard(
                             schedule = schedule,
                             categoryName = schedule.categoryId?.let { categoryMap[it]?.name } ?: "Всі рослини",
                             onComplete = null,
-                            onDelete = { viewModel.deleteSchedule(schedule) }
+                            onDelete = { scheduleToDelete = schedule }
                         )
                     }
                 }
@@ -295,6 +335,57 @@ fun SchedulesScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDismissScheduleCard(
+    schedule: ScheduleEntity,
+    categoryName: String,
+    onComplete: (() -> Unit)?,
+    onDelete: () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+            }
+            false
+        }
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromEndToStart = true,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            val color by animateColorAsState(
+                when (dismissState.targetValue) {
+                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                },
+                label = "schedule_swipe_bg"
+            )
+            val scale by animateFloatAsState(
+                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1f else 0.75f,
+                label = "schedule_swipe_icon"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color, RoundedCornerShape(12.dp))
+                    .padding(end = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Видалити",
+                    modifier = Modifier.scale(scale),
+                    tint = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        },
+        content = { ScheduleCard(schedule, categoryName, onComplete, onDelete) }
+    )
+}
+
 @Composable
 fun ScheduleCard(
     schedule: ScheduleEntity,
@@ -327,17 +418,20 @@ fun ScheduleCard(
                         text = schedule.phaseTime,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (isCompleted) Color.Gray else MaterialTheme.colorScheme.primary
+                        color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (isCompleted) Color.LightGray else MaterialTheme.colorScheme.primaryContainer
+                        color = if (isCompleted) MaterialTheme.colorScheme.surfaceVariant
+                                else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = categoryName,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isCompleted) Color.DarkGray else MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -378,9 +472,9 @@ fun ScheduleCard(
             if (schedule.startDate > 0 && schedule.endDate > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Термін проведення: ${dateFormat.format(Date(schedule.startDate))} — ${dateFormat.format(Date(schedule.endDate))}",
+                    text = "Термін: ${dateFormat.format(Date(schedule.startDate))} — ${dateFormat.format(Date(schedule.endDate))}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
