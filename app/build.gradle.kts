@@ -83,5 +83,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coroutines.android)
     implementation(libs.osmdroid.android)
+    implementation("androidx.documentfile:documentfile:1.0.1")
     debugImplementation(libs.compose.ui.tooling)
 }

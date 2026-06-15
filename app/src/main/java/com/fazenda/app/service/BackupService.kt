@@ -298,4 +298,56 @@ class BackupService(private val context: Context) {
         }
         return missing
     }
+
+    fun autoBackup(uriString: String) {
+        try {
+            val treeUri = Uri.parse(uriString)
+            val dir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+            if (dir == null || !dir.exists() || !dir.canWrite()) {
+                android.util.Log.e("BackupService", "AutoBackup: Directory is not writable or doesn't exist.")
+                return
+            }
+
+            val backupFile = createBackup()
+            var file = dir.findFile("fazenda_backup.zip")
+            if (file == null) {
+                file = dir.createFile("application/zip", "fazenda_backup.zip")
+            }
+
+            if (file != null) {
+                saveBackupToUri(backupFile, file.uri)
+                android.util.Log.i("BackupService", "AutoBackup completed successfully.")
+            } else {
+                android.util.Log.e("BackupService", "AutoBackup: Failed to create file in directory.")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BackupService", "AutoBackup failed", e)
+        }
+    }
+
+    fun autoRestore(uriString: String): Boolean {
+        return try {
+            val treeUri = Uri.parse(uriString)
+            val dir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+            if (dir == null || !dir.exists() || !dir.canRead()) {
+                android.util.Log.e("BackupService", "AutoRestore: Directory is not readable or doesn't exist.")
+                return false
+            }
+
+            val file = dir.findFile("fazenda_backup.zip")
+            if (file != null && file.exists()) {
+                val success = restoreBackup(file.uri)
+                if (success) {
+                    android.util.Log.i("BackupService", "AutoRestore completed successfully.")
+                }
+                success
+            } else {
+                android.util.Log.i("BackupService", "AutoRestore: fazenda_backup.zip not found in directory.")
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BackupService", "AutoRestore failed", e)
+            false
+        }
+    }
 }

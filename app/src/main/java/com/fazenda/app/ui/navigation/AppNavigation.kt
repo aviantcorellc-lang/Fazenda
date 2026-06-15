@@ -34,6 +34,7 @@ import com.fazenda.app.ui.screen.dashboard.SchedulesScreen
 import com.fazenda.app.ui.screen.knowledge.KnowledgeBaseScreen
 import com.fazenda.app.ui.screen.search.SearchScreen
 import com.fazenda.app.ui.screen.onboarding.OnboardingScreen
+import com.fazenda.app.ui.screen.onboarding.BackupSetupScreen
 import androidx.compose.ui.platform.LocalContext
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
 
@@ -60,6 +61,7 @@ sealed class DetailScreen(val route: String) {
     data object KnowledgeBase : DetailScreen("knowledge_base")
     data object Search : DetailScreen("search")
     data object Onboarding : DetailScreen("onboarding")
+    data object BackupSetup : DetailScreen("backup_setup")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,7 +78,14 @@ fun AppNavigation() {
     val startDestination = remember {
         val sharedPrefs = context.getSharedPreferences("fazenda_prefs", android.content.Context.MODE_PRIVATE)
         val onboardingCompleted = sharedPrefs.getBoolean("onboarding_completed", false)
-        if (onboardingCompleted) Screen.Dashboard.route else DetailScreen.Onboarding.route
+        val backupUri = sharedPrefs.getString("backup_uri", null)
+        if (!onboardingCompleted) {
+            DetailScreen.Onboarding.route
+        } else if (backupUri == null) {
+            DetailScreen.BackupSetup.route
+        } else {
+            Screen.Dashboard.route
+        }
     }
 
     Scaffold(
@@ -259,8 +268,26 @@ fun AppNavigation() {
             composable(DetailScreen.Onboarding.route) {
                 OnboardingScreen(
                     onFinished = {
+                        val sharedPrefs = context.getSharedPreferences("fazenda_prefs", android.content.Context.MODE_PRIVATE)
+                        val backupUri = sharedPrefs.getString("backup_uri", null)
+                        if (backupUri == null) {
+                            navController.navigate(DetailScreen.BackupSetup.route) {
+                                popUpTo(DetailScreen.Onboarding.route) { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate(Screen.Dashboard.route) {
+                                popUpTo(DetailScreen.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    }
+                )
+            }
+
+            composable(DetailScreen.BackupSetup.route) {
+                BackupSetupScreen(
+                    onFinished = {
                         navController.navigate(Screen.Dashboard.route) {
-                            popUpTo(DetailScreen.Onboarding.route) { inclusive = true }
+                            popUpTo(DetailScreen.BackupSetup.route) { inclusive = true }
                         }
                     }
                 )

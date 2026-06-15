@@ -20,6 +20,7 @@
         android:label="Розумний Сад"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
+        android:hasFragileUserData="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.FazendaApp">
 

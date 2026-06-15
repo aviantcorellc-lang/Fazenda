@@ -205,7 +205,7 @@ abstract class AppDatabase : RoomDatabase() {
         private fun buildDatabase(context: Context): AppDatabase {
             return Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fazenda_db")
                 .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
-                .fallbackToDestructiveMigration(false)
+                .fallbackToDestructiveMigration(true)
                 .addCallback(SeedDatabaseCallback(context))
                 .build()
         }

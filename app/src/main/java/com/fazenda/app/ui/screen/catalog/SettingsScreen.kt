@@ -38,6 +38,21 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var backupFileToSave by remember { mutableStateOf<java.io.File?>(null) }
+    
+    val sharedPrefs = context.getSharedPreferences("fazenda_prefs", android.content.Context.MODE_PRIVATE)
+    var backupUriStr by remember { mutableStateOf(sharedPrefs.getString("backup_uri", null)) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(uri, flags)
+            sharedPrefs.edit().putString("backup_uri", uri.toString()).apply()
+            backupUriStr = uri.toString()
+            Toast.makeText(context, "Папка для бекапів змінена", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val saveLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
@@ -113,6 +128,21 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
             )
+
+            SettingsCard(
+                icon = Icons.Default.FolderSpecial,
+                title = "Папка для бекапів",
+                subtitle = if (backupUriStr != null) {
+                    val decoded = android.net.Uri.decode(backupUriStr)
+                    val lastSegment = decoded.substringAfterLast(":")
+                    "Поточна: $lastSegment"
+                } else {
+                    "Не вибрано"
+                },
+                tint = MaterialTheme.colorScheme.primary
+            ) {
+                folderPickerLauncher.launch(null)
+            }
 
             SettingsCard(
                 icon = Icons.Default.Share,
