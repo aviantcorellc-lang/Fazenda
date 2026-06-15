@@ -33,14 +33,23 @@ class ScheduleAlarmManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                schedule.startDate,
-                pendingIntent
-            )
-        } else {
-            alarmManager.setExact(
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    schedule.startDate,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    schedule.startDate,
+                    pendingIntent
+                )
+            }
+        } catch (e: SecurityException) {
+            // Fallback to inexact alarm if the app does not have permission to schedule exact alarms
+            alarmManager.set(
                 AlarmManager.RTC_WAKEUP,
                 schedule.startDate,
                 pendingIntent

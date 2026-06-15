@@ -53,10 +53,15 @@ class NetworkConnectivityObserver(context: Context) : ConnectivityObserver {
                 .build()
 
             // Спочатку перевіримо поточний статус
-            val isConnected = connectivityManager.activeNetwork?.let {
-                connectivityManager.getNetworkCapabilities(it)
-                    ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            } ?: false
+            val isConnected = try {
+                connectivityManager.activeNetwork?.let {
+                    connectivityManager.getNetworkCapabilities(it)
+                        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                } ?: false
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
             send(if (isConnected) ConnectivityObserver.Status.Available else ConnectivityObserver.Status.Unavailable)
 
             try {
