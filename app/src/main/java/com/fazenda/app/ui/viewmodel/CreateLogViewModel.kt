@@ -17,8 +17,10 @@ import com.fazenda.app.service.FileService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import android.content.Context
 
 enum class TargetType(val displayName: String) {
     PLANT("Рослина"),
@@ -105,6 +107,50 @@ class CreateLogViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             categoryRepository.allCategories.collect { list ->
                 _categories.value = list
+            }
+        }
+        loadContextualDefaults()
+    }
+
+    private fun loadContextualDefaults() {
+        viewModelScope.launch {
+            val sharedPrefs = context.getSharedPreferences("fazenda_prefs", Context.MODE_PRIVATE)
+            val lastTargetTypeName = sharedPrefs.getString("last_target_type", null)
+            val lastActionType = sharedPrefs.getString("last_action_type", null)
+
+            if (lastTargetTypeName != null) {
+                try {
+                    val targetType = TargetType.valueOf(lastTargetTypeName)
+                    _selectedTargetType.value = targetType
+                } catch (e: Exception) {}
+            }
+            if (lastActionType != null) {
+                _selectedActionType.value = lastActionType
+            }
+
+            val lastPlantId = sharedPrefs.getLong("last_plant_id", -1L)
+            if (lastPlantId != -1L && _selectedTargetType.value == TargetType.PLANT) {
+                val plant = plantRepository.allPlants.first().find { it.id == lastPlantId }
+                if (plant != null) _selectedPlant.value = plant
+            }
+
+            val lastZoneId = sharedPrefs.getLong("last_zone_id", -1L)
+            if (lastZoneId != -1L && _selectedTargetType.value == TargetType.ZONE) {
+                val zone = zoneRepository.allZones.first().find { it.id == lastZoneId }
+                if (zone != null) _selectedZone.value = zone
+            }
+
+            val lastCategoryId = sharedPrefs.getLong("last_category_id", -1L)
+            if (lastCategoryId != -1L && _selectedTargetType.value == TargetType.CATEGORY) {
+                val category = categoryRepository.allCategories.first().find { it.id == lastCategoryId }
+                if (category != null) _selectedCategory.value = category
+            }
+
+            val lastChemicalIdsString = sharedPrefs.getString("last_chemical_ids", null)
+            if (lastChemicalIdsString != null) {
+                val lastChemicalIds = lastChemicalIdsString.split(",").mapNotNull { it.toLongOrNull() }
+                val selected = chemicalRepository.allChemicals.first().filter { it.id in lastChemicalIds }
+                _selectedChemicals.value = selected
             }
         }
     }
@@ -226,6 +272,23 @@ class CreateLogViewModel(application: Application) : AndroidViewModel(applicatio
                     LogChemicalCrossRef(logId = logId, chemicalId = it.id)
                 }
                 logRepository.insertLogChemicals(crossRefs)
+            }
+
+            // Збережемо контекстні налаштування востаннє використаних параметрів
+            val sharedPrefs = context.getSharedPreferences("fazenda_prefs", Context.MODE_PRIVATE)
+            sharedPrefs.edit().apply {
+                putString("last_target_type", targetType.name)
+                plantId?.let { putLong("last_plant_id", it) }
+                zoneId?.let { putLong("last_zone_id", it) }
+                categoryId?.let { putLong("last_category_id", it) }
+                putString("last_action_type", type)
+                if (type == LogActionTypes.SPRAYING || type == LogActionTypes.FEEDING) {
+                    val chemIdsString = _selectedChemicals.value.joinToString(",") { it.id.toString() }
+                    putString("last_chemical_ids", chemIdsString)
+                } else {
+                    remove("last_chemical_ids")
+                }
+                apply()
             }
 
             _saved.value = true

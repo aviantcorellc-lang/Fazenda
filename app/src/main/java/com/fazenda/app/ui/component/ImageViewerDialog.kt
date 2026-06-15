@@ -1,5 +1,8 @@
 package com.fazenda.app.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -11,10 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,7 +100,7 @@ fun ImageViewerDialog(
         ) {
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = (scale <= 1f && maxOffsetX <= 0f),
+                userScrollEnabled = (scale <= 1f),
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val model = images[page]
@@ -172,32 +173,68 @@ fun ImageViewerDialog(
                 }
             }
 
-            IconButton(
-                onClick = onDismiss,
+            // Напівпрозорий TopAppBar з індикатором сторінок та кнопкою закриття
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .size(40.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape),
-                colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Закрити")
+                if (images.size > 1) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.Black.copy(alpha = 0.5f)
+                    ) {
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${images.size}",
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Закрити")
+                }
             }
 
-            if (images.size > 1) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+            // Кнопка швидкого скидання зуму
+            AnimatedVisibility(
+                visible = scale > 1f,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 32.dp)
+            ) {
+                Button(
+                    onClick = {
+                        scale = 1f
+                        offsetX = 0f
+                        offsetY = 0f
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = "${pagerState.currentPage + 1} / ${images.size}",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Icon(Icons.Default.ZoomOutMap, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Скинути зум", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

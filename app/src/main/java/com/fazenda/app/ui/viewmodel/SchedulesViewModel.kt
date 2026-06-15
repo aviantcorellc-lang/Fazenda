@@ -8,6 +8,7 @@ import com.fazenda.app.data.entity.CategoryEntity
 import com.fazenda.app.data.entity.LogActionTypes
 import com.fazenda.app.data.entity.LogEntity
 import com.fazenda.app.data.entity.ScheduleEntity
+import com.fazenda.app.service.ScheduleAlarmManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +18,7 @@ class SchedulesViewModel(application: Application) : AndroidViewModel(applicatio
     private val scheduleRepository = (application as FazendaApplication).scheduleRepository
     private val categoryRepository = (application as FazendaApplication).categoryRepository
     private val logRepository = (application as FazendaApplication).logRepository
+    private val alarmManager = ScheduleAlarmManager(application)
 
     private val _schedules = MutableStateFlow<List<ScheduleEntity>>(emptyList())
     val schedules: StateFlow<List<ScheduleEntity>> = _schedules.asStateFlow()
@@ -28,6 +30,11 @@ class SchedulesViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             scheduleRepository.allSchedules.collect { list ->
                 _schedules.value = list
+                // Спробуємо автоматично встановити аларми для майбутніх невиконаних подій
+                val now = System.currentTimeMillis()
+                list.filter { !it.isCompleted && it.startDate > now }.forEach { schedule ->
+                    alarmManager.scheduleAlarm(schedule)
+                }
             }
         }
         viewModelScope.launch {
@@ -47,13 +54,15 @@ class SchedulesViewModel(application: Application) : AndroidViewModel(applicatio
                 endDate = endDate,
                 isCompleted = false
             )
-            scheduleRepository.insertSchedule(schedule)
+            val id = scheduleRepository.insertSchedule(schedule)
+            alarmManager.scheduleAlarm(schedule.copy(id = id))
         }
     }
 
     fun completeSchedule(schedule: ScheduleEntity) {
         viewModelScope.launch {
             scheduleRepository.markAsCompleted(schedule.id)
+            alarmManager.cancelAlarm(schedule.id)
             
             // Automatically log this action in the journal as a group treatment
             val log = LogEntity(
@@ -71,6 +80,7 @@ class SchedulesViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteSchedule(schedule: ScheduleEntity) {
         viewModelScope.launch {
             scheduleRepository.deleteSchedule(schedule)
+            alarmManager.cancelAlarm(schedule.id)
         }
     }
 }

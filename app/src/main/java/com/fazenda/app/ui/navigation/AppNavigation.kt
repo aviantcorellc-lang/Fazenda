@@ -32,6 +32,9 @@ import com.fazenda.app.ui.screen.journal.JournalScreen
 import com.fazenda.app.ui.screen.map.MapScreen
 import com.fazenda.app.ui.screen.dashboard.SchedulesScreen
 import com.fazenda.app.ui.screen.knowledge.KnowledgeBaseScreen
+import com.fazenda.app.ui.screen.search.SearchScreen
+import com.fazenda.app.ui.screen.onboarding.OnboardingScreen
+import androidx.compose.ui.platform.LocalContext
 import com.fazenda.app.ui.viewmodel.CatalogViewModel
 
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
@@ -55,6 +58,8 @@ sealed class DetailScreen(val route: String) {
     data object Settings : DetailScreen("settings")
     data object Schedules : DetailScreen("schedules")
     data object KnowledgeBase : DetailScreen("knowledge_base")
+    data object Search : DetailScreen("search")
+    data object Onboarding : DetailScreen("onboarding")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +71,13 @@ fun AppNavigation() {
 
     val bottomNavItems = listOf(Screen.Dashboard, Screen.Catalog, Screen.Journal)
     val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+
+    val context = LocalContext.current
+    val startDestination = remember {
+        val sharedPrefs = context.getSharedPreferences("fazenda_prefs", android.content.Context.MODE_PRIVATE)
+        val onboardingCompleted = sharedPrefs.getBoolean("onboarding_completed", false)
+        if (onboardingCompleted) Screen.Dashboard.route else DetailScreen.Onboarding.route
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -96,7 +108,7 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Dashboard.route,
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding).imePadding()
         ) {
             composable(Screen.Dashboard.route) {
@@ -115,6 +127,9 @@ fun AppNavigation() {
                     },
                     onNavigateToKnowledgeBase = {
                         navController.navigate(DetailScreen.KnowledgeBase.route)
+                    },
+                    onNavigateToSearch = {
+                        navController.navigate(DetailScreen.Search.route)
                     }
                 )
             }
@@ -132,6 +147,12 @@ fun AppNavigation() {
                     },
                     onNavigateToSettings = {
                         navController.navigate(DetailScreen.Settings.route)
+                    },
+                    onNavigateToZones = {
+                        navController.navigate(DetailScreen.Zones.route)
+                    },
+                    onNavigateToCategories = {
+                        navController.navigate(DetailScreen.Categories.route)
                     }
                 )
             }
@@ -220,6 +241,28 @@ fun AppNavigation() {
             composable(DetailScreen.KnowledgeBase.route) {
                 KnowledgeBaseScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(DetailScreen.Search.route) {
+                SearchScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onPlantClick = { plantId ->
+                        navController.navigate(DetailScreen.PlantDetails.createRoute(plantId))
+                    },
+                    onPlantEdit = { plantId ->
+                        navController.navigate(DetailScreen.EditPlant.createRoute(plantId))
+                    }
+                )
+            }
+
+            composable(DetailScreen.Onboarding.route) {
+                OnboardingScreen(
+                    onFinished = {
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(DetailScreen.Onboarding.route) { inclusive = true }
+                        }
+                    }
                 )
             }
         }

@@ -52,4 +52,10 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    fun deletePlant(plant: com.fazenda.app.data.entity.PlantEntity) {
+        viewModelScope.launch {
+            plantRepository.deletePlant(plant)
+        }
+    }
 }

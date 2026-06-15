@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fazenda.app.data.entity.ScheduleEntity
 import com.fazenda.app.ui.viewmodel.SchedulesViewModel
@@ -395,6 +396,26 @@ fun ScheduleCard(
 ) {
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale("uk", "UA")) }
     val isCompleted = schedule.isCompleted
+    val now = System.currentTimeMillis()
+    val isExpired = !isCompleted && schedule.endDate > 0 && schedule.endDate < now
+    
+    val statusLabel = when {
+        isCompleted -> "Виконано"
+        isExpired -> "Протерміновано"
+        else -> "Активний"
+    }
+    
+    val statusColor = when {
+        isCompleted -> Color(0xFF2E7D32)
+        isExpired -> Color(0xFFC62828)
+        else -> Color(0xFFEF6C00)
+    }
+    
+    val statusContainerColor = when {
+        isCompleted -> Color(0xFFE8F5E9)
+        isExpired -> Color(0xFFFFEBEE)
+        else -> Color(0xFFFFF3E0)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -422,18 +443,35 @@ fun ScheduleCard(
                                 else MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (isCompleted) MaterialTheme.colorScheme.surfaceVariant
-                                else MaterialTheme.colorScheme.primaryContainer
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = categoryName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
-                                    else MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isCompleted) MaterialTheme.colorScheme.surfaceVariant
+                                    else MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = categoryName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                                        else MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = statusContainerColor
+                        ) {
+                            Text(
+                                text = statusLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 

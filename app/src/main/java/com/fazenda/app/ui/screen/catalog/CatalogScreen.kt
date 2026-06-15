@@ -22,6 +22,12 @@ import androidx.compose.material.icons.filled.Grass
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Category
+import com.fazenda.app.ui.component.MultiFloatingActionButton
+import com.fazenda.app.ui.component.FabItem
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +52,8 @@ fun CatalogScreen(
     onPlantEdit: (Long) -> Unit = {},
     onAddPlant: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToZones: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
     catalogViewModel: CatalogViewModel = viewModel()
 ) {
     val categories by catalogViewModel.categories.collectAsState()
@@ -60,6 +68,29 @@ fun CatalogScreen(
     val selectedCategoryId by catalogViewModel.selectedCategoryId.collectAsState()
     val searchQuery by catalogViewModel.searchQuery.collectAsState()
     val showSearch by catalogViewModel.showSearch.collectAsState()
+
+    var plantToDelete by remember { mutableStateOf<PlantWithPhotos?>(null) }
+
+    if (plantToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { plantToDelete = null },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Видалити рослину?") },
+            text = { Text("Рослину '${plantToDelete!!.plant.name}' буде видалено разом з історією її фото та логів.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        plantToDelete?.plant?.let { catalogViewModel.deletePlant(it) }
+                        plantToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Видалити") }
+            },
+            dismissButton = {
+                TextButton(onClick = { plantToDelete = null }) { Text("Скасувати") }
+            }
+        )
+    }
 
     val filteredPlants = if (selectedCategoryId == null) {
         allPlantsWithPhotos
@@ -153,9 +184,22 @@ fun CatalogScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddPlant) {
-                Icon(Icons.Default.Add, contentDescription = "Додати рослину")
-            }
+            val fabItems = listOf(
+                FabItem(1, Icons.Default.Grass, "Нова рослина"),
+                FabItem(2, Icons.Default.Hub, "Керувати зонами"),
+                FabItem(3, Icons.Default.Category, "Керувати категоріями")
+            )
+            MultiFloatingActionButton(
+                items = fabItems,
+                mainIcon = Icons.Default.Add,
+                onItemClick = { item ->
+                    when (item.id) {
+                        1 -> onAddPlant()
+                        2 -> onNavigateToZones()
+                        3 -> onNavigateToCategories()
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Column(
@@ -214,7 +258,8 @@ fun CatalogScreen(
                                 categoryName = catName,
                                 zoneName = plantWithPhotos.plant.zoneId?.let { zoneMap[it]?.name },
                                 onClick = { onPlantClick(plantWithPhotos.plant.id) },
-                                onEdit = { onPlantEdit(plantWithPhotos.plant.id) }
+                                onEdit = { onPlantEdit(plantWithPhotos.plant.id) },
+                                onDelete = { plantToDelete = plantWithPhotos }
                             )
                         }
                     }
@@ -231,7 +276,8 @@ fun PlantCard(
     categoryName: String?,
     zoneName: String?,
     onClick: () -> Unit,
-    onEdit: () -> Unit = {}
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     val plant = plantWithPhotos.plant
     val context = LocalContext.current
@@ -417,8 +463,32 @@ fun PlantCard(
                             }
                         }
                     }
-                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Редагувати", modifier = Modifier.size(18.dp))
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Меню", modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Редагувати") },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Видалити", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))

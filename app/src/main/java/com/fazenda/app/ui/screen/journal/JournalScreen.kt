@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fazenda.app.ui.component.MultiFloatingActionButton
+import com.fazenda.app.ui.component.FabItem
 import com.fazenda.app.data.entity.CategoryEntity
 import com.fazenda.app.data.entity.LogActionTypes
 import com.fazenda.app.data.entity.LogWithChemicals
@@ -74,9 +76,20 @@ fun JournalScreen(
             TopAppBar(title = { Text("Журнал") })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToCreateLog) {
-                Icon(Icons.Default.Add, contentDescription = "Додати запис")
-            }
+            val fabItems = listOf(
+                FabItem(1, Icons.Default.EditNote, "Новий запис"),
+                FabItem(2, Icons.Default.SmartToy, "Діагноз ШІ")
+            )
+            MultiFloatingActionButton(
+                items = fabItems,
+                mainIcon = Icons.Default.Add,
+                onItemClick = { item ->
+                    when (item.id) {
+                        1 -> onNavigateToCreateLog()
+                        2 -> onNavigateToCreateLog() // Обидва ведуть на сторінку логів
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Box(

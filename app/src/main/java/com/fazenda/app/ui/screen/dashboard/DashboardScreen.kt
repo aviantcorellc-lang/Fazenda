@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fazenda.app.data.entity.ScheduleEntity
 import com.fazenda.app.service.UpdateInfo
@@ -43,6 +51,7 @@ fun DashboardScreen(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToSchedules: () -> Unit = {},
     onNavigateToKnowledgeBase: () -> Unit = {},
+    onNavigateToSearch: () -> Unit = {},
     dashboardViewModel: DashboardViewModel = viewModel(),
     categoryViewModel: CategoryViewModel = viewModel()
 ) {
@@ -53,6 +62,7 @@ fun DashboardScreen(
     val weatherAdvice by dashboardViewModel.weatherAdvice.collectAsState()
     val weatherCode by dashboardViewModel.currentWeatherCode.collectAsState()
     val weatherTemp by dashboardViewModel.currentWeatherTemp.collectAsState()
+    val connectivityStatus by dashboardViewModel.connectivityStatus.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -74,6 +84,9 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("План дій") },
                 actions = {
+                    IconButton(onClick = onNavigateToSearch) {
+                        Icon(Icons.Default.Search, contentDescription = "Пошук")
+                    }
                     IconButton(onClick = onNavigateToMap) {
                         Icon(Icons.Default.Map, contentDescription = "Мапа")
                     }
@@ -100,6 +113,33 @@ fun DashboardScreen(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (connectivityStatus != com.fazenda.app.service.ConnectivityObserver.Status.Available) {
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        text = "Офлайн-режим. Прогноз погоди та Вікіпедія недоступні.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     item {
                         WeatherCard(
                             weatherAdvice = weatherAdvice,
@@ -344,4 +384,183 @@ fun WeatherCard(
         }
     }
 }
+
+@Composable
+fun BarChart(
+    data: Map<String, Int>,
+    modifier: Modifier = Modifier
+) {
+    val maxVal = remember(data) { (data.values.maxOrNull() ?: 0).coerceAtLeast(1) }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Використання препаратів (Топ-5)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                val width = size.width
+                val height = size.height
+                
+                val paddingLeft = 30f
+                val paddingBottom = 40f
+                val chartWidth = width - paddingLeft
+                val chartHeight = height - paddingBottom
+                
+                val itemsCount = data.size
+                val barWidth = (chartWidth / itemsCount) * 0.6f
+                val spaceWidth = (chartWidth / itemsCount) * 0.4f
+                
+                data.entries.forEachIndexed { index, entry ->
+                    val barHeight = (entry.value.toFloat() / maxVal) * chartHeight
+                    val left = paddingLeft + (index * (barWidth + spaceWidth)) + spaceWidth / 2
+                    val top = chartHeight - barHeight
+                    
+                    drawRoundRect(
+                        color = primaryColor,
+                        topLeft = androidx.compose.ui.geometry.Offset(left, top),
+                        size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
+                    )
+                    
+                    drawContext.canvas.nativeCanvas.drawText(
+                        entry.value.toString(),
+                        left + barWidth / 2,
+                        top - 10f,
+                        android.graphics.Paint().apply {
+                            color = onSurfaceColor.toArgb()
+                            textSize = 24f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            isFakeBoldText = true
+                        }
+                    )
+                    
+                    val truncatedLabel = if (entry.key.length > 8) entry.key.take(7) + ".." else entry.key
+                    drawContext.canvas.nativeCanvas.drawText(
+                        truncatedLabel,
+                        left + barWidth / 2,
+                        height - 10f,
+                        android.graphics.Paint().apply {
+                            color = onSurfaceColor.copy(alpha = 0.7f).toArgb()
+                            textSize = 20f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LineChart(
+    data: Map<String, Int>,
+    modifier: Modifier = Modifier
+) {
+    val maxVal = remember(data) { (data.values.maxOrNull() ?: 0).coerceAtLeast(1) }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Активність за останні 7 днів",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                val width = size.width
+                val height = size.height
+                
+                val paddingLeft = 30f
+                val paddingBottom = 40f
+                val chartWidth = width - paddingLeft
+                val chartHeight = height - paddingBottom
+                
+                val points = data.entries.toList()
+                val stepX = chartWidth / (points.size - 1).coerceAtLeast(1)
+                
+                val path = Path()
+                val fillPath = Path()
+                
+                points.forEachIndexed { index, entry ->
+                    val x = paddingLeft + index * stepX
+                    val y = chartHeight - (entry.value.toFloat() / maxVal) * chartHeight
+                    
+                    if (index == 0) {
+                        path.moveTo(x, y)
+                        fillPath.moveTo(x, chartHeight)
+                        fillPath.lineTo(x, y)
+                    } else {
+                        path.lineTo(x, y)
+                        fillPath.lineTo(x, y)
+                    }
+                    
+                    if (index == points.size - 1) {
+                        fillPath.lineTo(x, chartHeight)
+                        fillPath.close()
+                    }
+                    
+                    drawCircle(
+                        color = primaryColor,
+                        radius = 6f,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
+                    )
+                    
+                    drawContext.canvas.nativeCanvas.drawText(
+                        entry.value.toString(),
+                        x,
+                        y - 12f,
+                        android.graphics.Paint().apply {
+                            color = onSurfaceColor.toArgb()
+                            textSize = 22f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            isFakeBoldText = true
+                        }
+                    )
+                    
+                    drawContext.canvas.nativeCanvas.drawText(
+                        entry.key,
+                        x,
+                        height - 10f,
+                        android.graphics.Paint().apply {
+                            color = onSurfaceColor.copy(alpha = 0.7f).toArgb()
+                            textSize = 18f
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                    )
+                }
+                
+                drawPath(
+                    path = path,
+                    color = primaryColor,
+                    style = Stroke(width = 4f)
+                )
+                
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(primaryColor.copy(alpha = 0.3f), Color.Transparent),
+                        startY = 0f,
+                        endY = chartHeight
+                    )
+                )
+            }
+        }
+    }
+}
+
 
